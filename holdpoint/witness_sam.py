@@ -1,41 +1,47 @@
-"""Witness B: SAM 3.1 finds each knob; geometry measures how far it has turned.
+"""Witness B: SAM 3.1 finds each knob; geometry measures which way its grip bar points.
 
 How the angle is measured
 -------------------------
-Knob pointers look different on every stove, so instead of asking SAM to find
-the pointer, we compare each knob with the SAME knob in the user's all-off
-reference photo (captured once at setup). We rotate the reference crop in 2°
-steps and find the rotation that best matches the current crop (normalised
-cross-correlation inside the knob's circle). That rotation is the knob's
-angle away from OFF.
+Stove knobs usually have a raised grip bar. On glossy knobs the metal reflects
+differently every time the knob or the camera moves, so comparing pixels is
+unreliable (we tried; see docs/engineering-notes.md). What stays reliable is
+the bar's two long straight edges: the knob's round rim has edges pointing in
+every direction, while the bar's edges all point one way. So we:
+
+1. take the knob's region from SAM 3.1 (its mask; circle-fitted, so a pointer
+   tip sticking out doesn't shift the centre),
+2. build a histogram of edge directions inside the knob, weighted by edge
+   strength, and take the peak as the bar's direction,
+3. compare it with the same knob's direction in the user's all-off setup photo.
 
 Safety rules built in:
-- A weak best match (occluded, blurred, wrong object) -> abstain.
-- Two equally good matches far apart (e.g. a symmetric bar knob that looks
-  the same at 0° and 180°) -> abstain. 180° would be ON, so we never guess.
-- If SAM finds fewer knobs than the profile expects, we only name knobs
-  whose identity is certain from the frame edge; the rest are OUT_OF_FRAME.
+- No clear peak (blur, a hand in the way, a knob without a bar) -> abstain.
+- Fewer knobs found than expected -> only name knobs whose identity is certain
+  from the image edge; the rest are OUT_OF_FRAME.
+
+Known limit: a straight bar looks the same pointing up (OFF) and pointing
+straight down (half a turn), so this witness can't tell those apart. Hold Point
+only says "off" when Witness A independently agrees.
 
 SAM output is decoded with Meta's official parser, meta-sam-parser.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
 
-from .geometry import angle_diff, state_from_angle
+from .geometry import state_from_angle
 from .schemas import FrameReadings, ItemReading, ReasonCode
 
 MODEL = "sam-3.1"
-CROP = 96                 # knob crops are resized to CROP x CROP
-INNER_RADIUS = 0.46       # compare pixels inside this fraction of the crop
-MIN_MATCH = 0.45          # best correlation below this = can't trust the match
-RIVAL_MARGIN = 0.06       # a rival peak this close to the best = ambiguous
-RIVAL_MIN_SEPARATION = 30.0
+INNER = 0.8               # use edges inside this fraction of the knob radius (skip the rim)
+BINS = 90                 # 2-degree histogram bins over 0-180
+MIN_PEAK = 2.8            # peak / mean of edge histogram: real bars 3.8-5.6, plain dome 1.7
+MIN_RADIUS_PX = 12        # smaller than this = too far away to measure
 EDGE_FRACTION = 0.06      # a knob this close to the image edge may be cut off
-BLUR_SIGMA = 2.0          # smoothing applied to every crop before matching
 
 
 @dataclass
@@ -94,54 +100,58 @@ def segment_image(client, image_bgr: np.ndarray, prompt: str, tag: str = "") -> 
     return parse_sam_text(resp.output_text)
 
 
-# ---------------------------------------------------------------- angle by rotation matching
+# ---------------------------------------------------------------- knob geometry
 
-def knob_crop(gray: np.ndarray, box: tuple[int, int, int, int]) -> np.ndarray | None:
-    """Square crop centred on the knob, resized to CROP x CROP (float32)."""
-    x0, y0, x1, y1 = box
-    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-    half = max(x1 - x0, y1 - y0) / 2
-    a, b = int(round(cx - half)), int(round(cy - half))
-    c, d = int(round(cx + half)), int(round(cy + half))
-    if a < 0 or b < 0 or c > gray.shape[1] or d > gray.shape[0] or c - a < 8:
-        return None
-    crop = cv2.resize(gray[b:d, a:c], (CROP, CROP), interpolation=cv2.INTER_AREA).astype(np.float32)
-    # Smooth so a few pixels of SAM box jitter don't change the match much.
-    return cv2.GaussianBlur(crop, (0, 0), BLUR_SIGMA)
-
-
-_yy, _xx = np.mgrid[:CROP, :CROP]
-_INNER = ((_xx - (CROP - 1) / 2) ** 2 + (_yy - (CROP - 1) / 2) ** 2) <= (INNER_RADIUS * CROP) ** 2
-
-
-def _ncc(a: np.ndarray, b: np.ndarray) -> float:
-    a, b = a[_INNER], b[_INNER]
-    a, b = a - a.mean(), b - b.mean()
-    den = np.sqrt((a * a).sum() * (b * b).sum())
-    return float((a * b).sum() / den) if den > 1e-6 else 0.0
+def knob_circle(obj: SamObject) -> tuple[float, float, float]:
+    """Centre (x, y) and radius in image pixels. Fits a circle to the mask outline,
+    ignoring the farthest 20% of points (a protruding pointer tip)."""
+    x0, y0, x1, y1 = obj.box
+    if obj.mask is not None and obj.mask.any():
+        cnts, _ = cv2.findContours(obj.mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        pts = max(cnts, key=cv2.contourArea)[:, 0, :].astype(np.float64)
+        if len(pts) >= 12:
+            def fit(p):
+                a = np.c_[2 * p[:, 0], 2 * p[:, 1], np.ones(len(p))]
+                cx, cy, c = np.linalg.lstsq(a, (p ** 2).sum(1), rcond=None)[0]
+                return cx, cy, math.sqrt(max(c + cx * cx + cy * cy, 1.0))
+            cx, cy, r = fit(pts)
+            d = np.hypot(pts[:, 0] - cx, pts[:, 1] - cy)
+            cx, cy, r = fit(pts[d <= np.percentile(d, 80)])
+            return x0 + cx, y0 + cy, r
+    r = min(x1 - x0, y1 - y0) / 2       # no mask: the shorter side is the least affected by a tip
+    return (x0 + x1) / 2, (y0 + y1) / 2, r
 
 
-def rotation_scores(reference: np.ndarray, current: np.ndarray, step: float = 2.0) -> dict[float, float]:
-    """Score for 'current = reference turned clockwise by angle'."""
-    centre = ((CROP - 1) / 2, (CROP - 1) / 2)
-    scores = {}
-    for ang in np.arange(0, 360, step):
-        m = cv2.getRotationMatrix2D(centre, -float(ang), 1.0)  # negative = clockwise on screen
-        rotated = cv2.warpAffine(reference, m, (CROP, CROP), flags=cv2.INTER_LINEAR,
-                                 borderMode=cv2.BORDER_REPLICATE)
-        scores[float(ang)] = _ncc(rotated, current)
-    return scores
-
-
-def measure_turn(reference: np.ndarray, current: np.ndarray) -> tuple[float | None, float, float]:
-    """Returns (angle from OFF or None if untrustworthy, best score, rival score)."""
-    scores = rotation_scores(reference, current)
-    best = max(scores, key=scores.get)
-    rival = max((s for a, s in scores.items() if abs(angle_diff(a, best)) > RIVAL_MIN_SEPARATION),
-                default=-1.0)
-    if scores[best] < MIN_MATCH or rival > scores[best] - RIVAL_MARGIN:
-        return None, scores[best], rival
-    return best, scores[best], rival
+def bar_direction(gray: np.ndarray, cx: float, cy: float, r: float) -> tuple[float | None, float]:
+    """Direction of the knob's grip bar in degrees (0 = vertical, clockwise, mod 180),
+    and the histogram peak strength. Returns (None, peak) if there's no clear bar."""
+    h = int(math.ceil(r * 1.3))
+    xa, ya = int(round(cx)) - h, int(round(cy)) - h
+    if xa < 0 or ya < 0 or xa + 2 * h > gray.shape[1] or ya + 2 * h > gray.shape[0]:
+        return None, 0.0
+    crop = gray[ya:ya + 2 * h, xa:xa + 2 * h]
+    crop = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(4, 4)).apply(crop).astype(np.float32)
+    # Remove gradual shading (light falling across the dome), keep sharp edges like the bar's.
+    crop = cv2.GaussianBlur(crop, (0, 0), 1.5) - cv2.GaussianBlur(crop, (0, 0), max(2.0, r / 5))
+    gx = cv2.Sobel(crop, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(crop, cv2.CV_32F, 0, 1, ksize=3)
+    yy, xx = np.mgrid[:crop.shape[0], :crop.shape[1]]
+    inside = np.hypot(xx - (cx - xa), yy - (cy - ya)) <= INNER * r
+    # an edge runs perpendicular to its gradient: direction (-gy, gx); angle from vertical, clockwise
+    ang = np.degrees(np.arctan2(-gy, -gx)) % 180.0
+    hist, _ = np.histogram(ang[inside], bins=BINS, range=(0, 180), weights=np.hypot(gx, gy)[inside])
+    if hist.sum() <= 0:
+        return None, 0.0
+    kernel = np.array([1, 2, 3, 2, 1], float) / 9.0
+    smooth = np.convolve(np.r_[hist[-2:], hist, hist[:2]], kernel, "valid")
+    i = int(smooth.argmax())
+    peak = float(smooth[i] / smooth.mean())
+    if peak < MIN_PEAK:
+        return None, peak
+    # refine the peak to sub-bin precision with a parabola through its neighbours
+    l, c, rgt = smooth[(i - 1) % BINS], smooth[i], smooth[(i + 1) % BINS]
+    offset = 0.5 * (l - rgt) / (l - 2 * c + rgt) if (l - 2 * c + rgt) != 0 else 0.0
+    return ((i + 0.5 + offset) * 180.0 / BINS) % 180.0, peak
 
 
 # ---------------------------------------------------------------- identity + reading
@@ -168,9 +178,15 @@ def assign_knobs(found: list[SamObject], expected_ids: list[str], image_width: i
     return {}                             # can't tell which knobs these are
 
 
+def measure_knobs(frame_bgr: np.ndarray, found: list[SamObject]) -> list[tuple[float | None, float]]:
+    """Bar direction and peak strength for each found knob (used at setup)."""
+    gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+    return [bar_direction(gray, *knob_circle(o)) for o in found]
+
+
 def read_knobs(frame_bgr: np.ndarray, frame_index: int, found: list[SamObject],
-               references: dict[str, np.ndarray]) -> FrameReadings:
-    """references: item_id -> OFF reference crop (from the home profile), in left-to-right order."""
+               references: dict[str, float]) -> FrameReadings:
+    """references: item_id -> the knob's bar direction at OFF (from setup), left to right."""
     ids = list(references)
     gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
     assigned = assign_knobs([o for o in found if o.frame == frame_index], ids, frame_bgr.shape[1])
@@ -181,17 +197,17 @@ def read_knobs(frame_bgr: np.ndarray, frame_index: int, found: list[SamObject],
         if obj is None:
             readings.append(ItemReading(item_id=iid, visible=False, reason_code=ReasonCode.OUT_OF_FRAME))
             continue
-        crop = knob_crop(gray, obj.box)
-        if crop is None:
-            readings.append(ItemReading(item_id=iid, visible=False, reason_code=ReasonCode.OUT_OF_FRAME))
-            continue
-        if min(obj.box[2] - obj.box[0], obj.box[3] - obj.box[1]) < 24:
+        cx, cy, r = knob_circle(obj)
+        if r < MIN_RADIUS_PX:
             readings.append(ItemReading(item_id=iid, visible=False, reason_code=ReasonCode.TOO_FAR))
             continue
-        angle, score, _ = measure_turn(references[iid], crop)
-        if angle is None:
-            reason = ReasonCode.OCCLUDED if score < MIN_MATCH else ReasonCode.LOW_EVIDENCE
-            readings.append(ItemReading(item_id=iid, visible=score >= MIN_MATCH, reason_code=reason))
+        direction, peak = bar_direction(gray, cx, cy, r)
+        if direction is None:
+            reason = ReasonCode.OUT_OF_FRAME if peak == 0.0 else ReasonCode.LOW_EVIDENCE
+            readings.append(ItemReading(item_id=iid, visible=False, reason_code=reason))
             continue
-        readings.append(state_from_angle(iid, angle, 0.0))
+        reading = state_from_angle(iid, direction, references[iid], period=180.0)
+        # report the turn relative to OFF, not the raw direction
+        turn = (direction - references[iid] + 90.0) % 180.0 - 90.0
+        readings.append(reading.model_copy(update={"angle_deg": round(turn, 1)}))
     return FrameReadings(frame_index=frame_index, witness="geometry", items=readings)

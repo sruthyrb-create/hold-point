@@ -13,8 +13,8 @@ import numpy as np
 
 from .schemas import ItemReading, ReasonCode
 
-OFF_TOLERANCE_DEG = 12.0   # within this of OFF = off
-AMBIGUOUS_BAND_DEG = 8.0   # between tol and tol+band = don't trust it
+OFF_TOLERANCE_DEG = 6.0    # within this of OFF = off (measured noise on a real stove: <=4 deg)
+AMBIGUOUS_BAND_DEG = 8.0   # 6-14 deg from OFF = don't trust it (a slight turn measured +12 deg)
 
 
 def centroid(mask: np.ndarray) -> Optional[tuple[float, float]]:
@@ -58,9 +58,12 @@ def read_knob(item_id: str, knob_mask: Optional[np.ndarray], pointer_mask: Optio
     return state_from_angle(item_id, angle, off_angle_deg)
 
 
-def state_from_angle(item_id: str, angle: float, off_angle_deg: float = 0.0) -> ItemReading:
-    """Shared rule: a narrow OFF window, an 'unsure' band around it, everything else ON."""
-    off_by = abs(angle_diff(angle, off_angle_deg))
+def state_from_angle(item_id: str, angle: float, off_angle_deg: float = 0.0,
+                     period: float = 360.0) -> ItemReading:
+    """Shared rule: a narrow OFF window, an 'unsure' band around it, everything else ON.
+    period=180 for line-like features (a bar), whose direction can't be told apart."""
+    d = (angle - off_angle_deg) % period
+    off_by = min(d, period - d)
     if off_by <= OFF_TOLERANCE_DEG:
         state, conf = "off", 1.0 - off_by / (OFF_TOLERANCE_DEG + AMBIGUOUS_BAND_DEG)
     elif off_by <= OFF_TOLERANCE_DEG + AMBIGUOUS_BAND_DEG:

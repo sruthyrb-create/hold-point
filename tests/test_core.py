@@ -34,7 +34,8 @@ def test_pointer_angle_round_trip():
 def test_read_knob_states():
     assert read_knob("k", *knob_masks(3), off_angle_deg=0).state == "off"
     assert read_knob("k", *knob_masks(90), off_angle_deg=0).state == "on"
-    assert read_knob("k", *knob_masks(15), off_angle_deg=0).reason_code is ReasonCode.LOW_EVIDENCE
+    assert read_knob("k", *knob_masks(10), off_angle_deg=0).reason_code is ReasonCode.LOW_EVIDENCE
+    assert read_knob("k", *knob_masks(20), off_angle_deg=0).state == "on"
     assert read_knob("k", None, None, 0).reason_code is ReasonCode.OUT_OF_FRAME
     k, _ = knob_masks(0)
     assert read_knob("k", k, None, 0).reason_code is ReasonCode.OCCLUDED

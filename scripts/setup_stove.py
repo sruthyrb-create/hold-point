@@ -3,12 +3,13 @@
     python scripts/setup_stove.py stove.jpg --knobs 4
 
 Cost: one SAM 3.1 image (~$0.0025).
-Writes home/profile.json (edit the "name" fields to e.g. "back-left burner"),
-home/stove_refs.npz, and home/stove_setup.jpg showing which number is which knob.
+Writes home/profile.json (edit the "name" fields to e.g. "back-left burner")
+and home/stove_setup.jpg showing which number is which knob.
 """
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
 from pathlib import Path
@@ -19,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from holdpoint.meta_client import MetaClient, prepare_frame  # noqa: E402
 from holdpoint.profile import HOME_DIR, knob_entries, save_stove  # noqa: E402
-from holdpoint.witness_sam import knob_crop, segment_image  # noqa: E402
+from holdpoint.witness_sam import knob_circle, measure_knobs, segment_image  # noqa: E402
 
 
 def main():
@@ -40,24 +41,27 @@ def main():
         raise SystemExit(f"SAM found {len(found)} knobs, expected {a.knobs}. "
                          "Retake the photo with every knob clearly in view, or try --prompt \"control knob\".")
 
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     knobs = knob_entries(a.knobs)
-    refs = {}
     annotated = frame.copy()
-    for entry, obj in zip(knobs, found):          # both left to right
-        crop = knob_crop(gray, obj.box)
-        if crop is None:
-            raise SystemExit(f"{entry['name']} is too close to the photo edge. Step back and retake.")
-        refs[entry["id"]] = crop
+    for entry, obj, (direction, peak) in zip(knobs, found, measure_knobs(frame, found)):  # left to right
+        if direction is None:
+            raise SystemExit(f"Couldn't see {entry['name']}'s grip bar clearly (strength {peak:.1f}). "
+                             "Retake in better light, a little closer, holding still.")
+        entry["off_direction"] = round(direction, 2)
         entry["setup_box"] = list(obj.box)
+        cx, cy, r = knob_circle(obj)
+        t = math.radians(direction)
+        cv2.line(annotated, (int(cx - math.sin(t) * r), int(cy + math.cos(t) * r)),
+                 (int(cx + math.sin(t) * r), int(cy - math.cos(t) * r)), (0, 0, 255), 2)
         x0, y0, x1, y1 = obj.box
         cv2.rectangle(annotated, (x0, y0), (x1, y1), (0, 200, 0), 3)
         cv2.putText(annotated, entry["id"].split("_")[1], (x0, max(30, y0 - 10)),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 200, 0), 3)
 
-    save_stove(knobs, refs, a.prompt)
+    save_stove(knobs, a.prompt)
     cv2.imwrite(str(HOME_DIR / "stove_setup.jpg"), annotated)
-    print(f"Saved {a.knobs} knobs (numbered left to right). See {HOME_DIR / 'stove_setup.jpg'}.")
+    print(f"Saved {a.knobs} knobs (numbered left to right). See {HOME_DIR / 'stove_setup.jpg'}:")
+    print("  the red line on each knob should run along its grip bar.")
     print(f"Optional: edit the \"name\" of each knob in {HOME_DIR / 'profile.json'}.")
     print(client.ledger.summary())
 

@@ -11,7 +11,7 @@ import numpy as np
 from .schemas import ReasonCode
 
 DARK_MEAN = 45.0        # mean grey level below this = too dark
-BLUR_LAPLACIAN = 60.0   # Laplacian variance below this = blurry
+BLUR_LAPLACIAN = 20.0   # Laplacian variance below this = blurry (real photos: 59-560; blurred copies: 2-5)
 GLARE_FRACTION = 0.04   # share of near-white pixels in the region
 MIN_ITEM_PIXELS = 24    # item box shorter side below this = too far
 

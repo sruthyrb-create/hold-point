@@ -54,7 +54,8 @@ def main():
     for k in ids:
         ra, rb = a_by.get(k), b_by.get(k)
         sa = f"{ra.state} ({ra.confidence:.2f})" if ra and ra.state else (ra.reason_code.value if ra else "missing")
-        sb = (f"{rb.state} ({rb.angle_deg}° from OFF)" if rb.state else rb.reason_code.value)
+        sb = (f"{rb.state} ({rb.angle_deg:+.0f}° from OFF)" if rb.state
+              else f"{rb.reason_code.value}" + (f" ({rb.angle_deg:+.0f}°)" if rb.angle_deg is not None else ""))
         print(f"{k:10} {sa:22} {sb:28}")
 
     verdicts = decide(ids, vlm, [geo], quality={0: quality} if quality else None,

@@ -29,7 +29,7 @@ Leaving the house means trusting that everything is off. For someone who can't s
 Vision assistants describe what they see. Hold Point is built to **know what it can't see**.
 
 1. **Two witnesses must agree.** Muse Spark reads each item; SAM 3.1 measures it geometrically. If they disagree, Hold Point doesn't answer.
-2. **Knob positions are measured, not guessed.** SAM 3.1 finds each knob, and Hold Point measures how far it has turned by comparing it with the same knob in the user's own all-off reference photo. A knob that is only slightly turned (the gas-leak case) is never reported as off.
+2. **Knob positions are measured, not guessed.** SAM 3.1 finds each knob, and Hold Point measures the direction of its grip bar from the bar's straight edges, then compares it with the same knob in the user's own all-off photo. A knob turned only slightly (the gas-leak case) is never reported as off. How we got there, including three approaches that failed on real glossy knobs: [engineering notes](docs/engineering-notes.md).
 3. **Every "I can't tell" becomes an instruction.** Each reason for abstaining (out of frame, covered, too dark, blurry, too far, glare) maps to a specific spoken fix, then it checks again.
 4. **Short, action-first answers.** "Three off. Can't confirm back-left. Move the phone left." Danger first, never a scene description.
 5. **An agent that finishes the job.** It plans the checklist from your home profile, guides you item by item, rechecks anything it abstained on, and ends with one sentence.
@@ -68,7 +68,7 @@ camera frames ──────────┼─► Witness B: SAM 3.1 trackin
 | Meta model | Role |
 |---|---|
 | Muse Spark 1.3 | Witness A: per-frame structured readings of each knob, display and indicator |
-| SAM 3.1 | Witness B: segments and tracks knobs, pointers and displays across frames |
+| SAM 3.1 | Witness B: locates each knob (and later, displays) and tracks them across frames; geometry then measures each knob |
 | Muse Wonder | Leaving-home agent: plans the checklist, sequences checks, writes the final summary |
 | Muse Voice Transcribe | Voice input |
 | Muse Glimmer (open weights) | Local mode: the vision witness running on self-hosted hardware, so home video never leaves your control |
@@ -85,7 +85,7 @@ camera frames ──────────┼─► Witness B: SAM 3.1 trackin
 - [x] Metrics: confident-wrong rate, abstention rate, correct rate, answer length, latency
 - [x] Spend guard (hard cap, blocks unpriced models) and response cache (repeat calls are free)
 - [x] Witness A: Muse Spark 1.3 per-frame structured readings (verified on a real stove photo)
-- [x] Witness B: SAM 3.1 finds each knob; its turn from OFF is measured by rotation-matching against the user's own all-off reference photo (abstains on weak or ambiguous matches)
+- [x] Witness B: SAM 3.1 finds each knob; its grip bar's direction is measured from straight edges and compared with the user's all-off photo (tested on a real stove: untouched knobs within ±5°, a slight turn flagged, a full turn read as ON)
 - [x] Danger-first answers: if either witness sees a knob ON, Hold Point never says "all clear"
 - [x] Stove setup and single-photo check scripts
 - [ ] Multi-frame video checks with SAM 3.1 tracking
@@ -130,6 +130,7 @@ See the docstring in `eval/inject_defects.py` for the ground-truth format.
 
 - **Not a safety-certified device.** It assists, and does not replace, the user's own checks or a smoke alarm.
 - **It abstains more in poor conditions.** In bad lighting or with a shaky camera it will say what it can't see rather than guess. That is the design, but it means more prompts to adjust the camera.
+- **Bar-shaped knobs look the same at OFF and half a turn.** Geometry can't tell those two apart; Hold Point only says OFF when Muse Spark independently agrees.
 - **It verifies what it's set up to check.** Items need to be added to the home profile once, ideally with a sighted helper.
 
 ## Credits
