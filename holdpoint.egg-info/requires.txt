@@ -1,0 +1,8 @@
+numpy>=1.26
+opencv-python-headless>=4.9
+pydantic>=2.6
+openai>=1.40
+meta-sam-parser>=0.1
+
+[dev]
+pytest>=8

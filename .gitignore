@@ -5,4 +5,8 @@ __pycache__/
 clips/
 *.mp4
 .holdpoint/
-*.egg-info/
+home/
+*.jpg
+*.jpeg
+*.png
+*.heic

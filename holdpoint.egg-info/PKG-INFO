@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: holdpoint
+Version: 0.1.0
+Summary: Hold Point: a voice-first assistant for blind and low-vision people that verifies appliance states and abstains when it can't see.
+Requires-Python: >=3.10
+Requires-Dist: numpy>=1.26
+Requires-Dist: opencv-python-headless>=4.9
+Requires-Dist: pydantic>=2.6
+Requires-Dist: openai>=1.40
+Requires-Dist: meta-sam-parser>=0.1
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"

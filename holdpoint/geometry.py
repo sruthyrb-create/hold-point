@@ -55,7 +55,11 @@ def read_knob(item_id: str, knob_mask: Optional[np.ndarray], pointer_mask: Optio
     angle = pointer_angle(knob_mask, pointer_mask)
     if angle is None:
         return ItemReading(item_id=item_id, visible=False, reason_code=ReasonCode.TOO_FAR)
+    return state_from_angle(item_id, angle, off_angle_deg)
 
+
+def state_from_angle(item_id: str, angle: float, off_angle_deg: float = 0.0) -> ItemReading:
+    """Shared rule: a narrow OFF window, an 'unsure' band around it, everything else ON."""
     off_by = abs(angle_diff(angle, off_angle_deg))
     if off_by <= OFF_TOLERANCE_DEG:
         state, conf = "off", 1.0 - off_by / (OFF_TOLERANCE_DEG + AMBIGUOUS_BAND_DEG)

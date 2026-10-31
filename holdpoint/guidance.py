@@ -50,6 +50,10 @@ def all_off_answer(verdicts: list[Verdict], names: dict[str, str],
         listed = " and ".join(names.get(v.item_id, v.item_id) for v in on[:2])
         tail = " Others unconfirmed." if unknown else ""
         return f"No. {listed} {'is' if len(on) == 1 else 'are'} ON.{tail}"
+    maybe_on = [v for v in unknown if v.possibly_on]
+    if maybe_on:
+        name = names.get(maybe_on[0].item_id, maybe_on[0].item_id)
+        return f"Not all clear. {name} may be ON. Check it."
     if not unknown:
         n = NUMBER_WORDS.get(len(off), str(len(off)))
         return f"Yes, all {n} off." if len(off) > 1 else "Yes, it's off."

@@ -74,18 +74,21 @@ def decide(item_ids: list[str], vlm_frames: list[FrameReadings], geo_frames: lis
                     out.append(r)
             return out
 
-        a_state, a_n, a_reasons = _witness_vote(collect(vlm_frames), cfg, is_vlm=True)
-        b_state, b_n, b_reasons = _witness_vote(collect(geo_frames), cfg, is_vlm=False)
+        a_read, b_read = collect(vlm_frames), collect(geo_frames)
+        a_state, a_n, a_reasons = _witness_vote(a_read, cfg, is_vlm=True)
+        b_state, b_n, b_reasons = _witness_vote(b_read, cfg, is_vlm=False)
         evidence = min(a_n, b_n)
+        possibly_on = any(r.visible and r.state and r.state.strip().lower() not in ("off", "")
+                          for r in a_read + b_read)
 
         if a_state is None or b_state is None:
             verdicts.append(Verdict(item_id=item, answered=False, evidence_frames=evidence,
                                     reason_code=_pick_reason(a_reasons + b_reasons),
-                                    detail=f"vlm={a_state} geo={b_state}"))
+                                    possibly_on=possibly_on, detail=f"vlm={a_state} geo={b_state}"))
         elif a_state != b_state:
             verdicts.append(Verdict(item_id=item, answered=False, evidence_frames=evidence,
                                     reason_code=ReasonCode.WITNESS_DISAGREE,
-                                    detail=f"vlm={a_state} geo={b_state}"))
+                                    possibly_on=possibly_on, detail=f"vlm={a_state} geo={b_state}"))
         else:
             verdicts.append(Verdict(item_id=item, answered=True, state=a_state,
                                     evidence_frames=evidence))

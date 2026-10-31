@@ -46,6 +46,7 @@ class Verdict(BaseModel):
     state: Optional[str] = None
     reason_code: ReasonCode = ReasonCode.OK
     evidence_frames: int = 0
+    possibly_on: bool = False   # unconfirmed, but at least one witness saw it ON
     detail: str = ""
 
 

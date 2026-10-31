@@ -8,6 +8,7 @@ dependencies = [
   "opencv-python-headless>=4.9",
   "pydantic>=2.6",
   "openai>=1.40",
+  "meta-sam-parser>=0.1",
 ]
 
 [project.optional-dependencies]

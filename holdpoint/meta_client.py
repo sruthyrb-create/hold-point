@@ -22,11 +22,18 @@ CACHE_DIR = Path(__file__).resolve().parent.parent / ".holdpoint" / "cache"
 MAX_SIDE = 1280  # 720p frames stay as they are; anything larger is shrunk
 
 
-def encode_frame(frame_bgr: np.ndarray, quality: int = 85) -> str:
+def prepare_frame(frame_bgr: np.ndarray) -> np.ndarray:
+    """Shrink to MAX_SIDE. Use the returned image for everything, so SAM's pixel
+    coordinates line up with the crops we measure."""
     h, w = frame_bgr.shape[:2]
     if max(h, w) > MAX_SIDE:
         s = MAX_SIDE / max(h, w)
         frame_bgr = cv2.resize(frame_bgr, (int(w * s), int(h * s)), interpolation=cv2.INTER_AREA)
+    return frame_bgr
+
+
+def encode_frame(frame_bgr: np.ndarray, quality: int = 85) -> str:
+    frame_bgr = prepare_frame(frame_bgr)
     ok, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, quality])
     if not ok:
         raise ValueError("could not JPEG-encode frame")

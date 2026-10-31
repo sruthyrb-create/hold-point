@@ -29,7 +29,7 @@ Leaving the house means trusting that everything is off. For someone who can't s
 Vision assistants describe what they see. Hold Point is built to **know what it can't see**.
 
 1. **Two witnesses must agree.** Muse Spark reads each item; SAM 3.1 measures it geometrically. If they disagree, Hold Point doesn't answer.
-2. **Knob positions are measured, not guessed.** SAM 3.1 finds the knob and its pointer, and Hold Point computes the angle against that specific stove's OFF mark.
+2. **Knob positions are measured, not guessed.** SAM 3.1 finds each knob, and Hold Point measures how far it has turned by comparing it with the same knob in the user's own all-off reference photo. A knob that is only slightly turned (the gas-leak case) is never reported as off.
 3. **Every "I can't tell" becomes an instruction.** Each reason for abstaining (out of frame, covered, too dark, blurry, too far, glare) maps to a specific spoken fix, then it checks again.
 4. **Short, action-first answers.** "Three off. Can't confirm back-left. Move the phone left." Danger first, never a scene description.
 5. **An agent that finishes the job.** It plans the checklist from your home profile, guides you item by item, rechecks anything it abstained on, and ends with one sentence.
@@ -84,8 +84,11 @@ camera frames ──────────┼─► Witness B: SAM 3.1 trackin
 - [x] Defect-injection script that turns one clean walkthrough into labelled broken clips
 - [x] Metrics: confident-wrong rate, abstention rate, correct rate, answer length, latency
 - [x] Spend guard (hard cap, blocks unpriced models) and response cache (repeat calls are free)
-- [x] Witness A: Muse Spark 1.3 per-frame structured readings (tested against a fake API; first real call pending)
-- [ ] Witness B: SAM 3.1 tracking → masks
+- [x] Witness A: Muse Spark 1.3 per-frame structured readings (verified on a real stove photo)
+- [x] Witness B: SAM 3.1 finds each knob; its turn from OFF is measured by rotation-matching against the user's own all-off reference photo (abstains on weak or ambiguous matches)
+- [x] Danger-first answers: if either witness sees a knob ON, Hold Point never says "all clear"
+- [x] Stove setup and single-photo check scripts
+- [ ] Multi-frame video checks with SAM 3.1 tracking
 - [ ] Leaving-home agent (Muse Wonder) and home profile
 - [ ] Voice in (Muse Voice Transcribe), speech out (OS text-to-speech)
 - [ ] Saved check record
@@ -104,6 +107,13 @@ pytest
 ```
 
 API mode needs no GPU. Set `MODEL_API_KEY`, and optionally set a spending cap with `HOLDPOINT_BUDGET_USD` (default $120). Prices are in `prices.json`; every call is logged to `.holdpoint/ledger.jsonl`, and repeated requests are served from a local cache at no cost.
+
+### Try it on your stove
+
+```bash
+python scripts/setup_stove.py all_off.jpg --knobs 4   # once: photo with every knob OFF
+python scripts/check_photo.py now.jpg                 # any time: ~1 cent per check
+```
 
 ### Build the test set
 
@@ -124,4 +134,4 @@ See the docstring in `eval/inject_defects.py` for the ground-truth format.
 
 ## Credits
 
-Speech output uses the device's built-in text-to-speech. All model inference uses Meta models.
+Speech output uses the device's built-in text-to-speech. All model inference uses Meta models. SAM 3.1 output is decoded with Meta's [`meta-sam-parser`](https://pypi.org/project/meta-sam-parser/) (SAM License).

@@ -55,7 +55,7 @@ def test_agree_answers():
 
 def test_disagree_abstains():
     v = decide(["bl"], frames("vlm", "bl", ["off"] * 5), frames("geometry", "bl", ["on"] * 5))[0]
-    assert not v.answered and v.reason_code is ReasonCode.WITNESS_DISAGREE
+    assert not v.answered and v.reason_code is ReasonCode.WITNESS_DISAGREE and v.possibly_on
 
 
 def test_confident_vlm_alone_is_not_enough():
@@ -94,6 +94,10 @@ def test_answers_are_short_and_action_first():
 
     danger = all_off[1:] + [Verdict(item_id="bl", answered=True, state="on")]
     assert all_off_answer(danger, NAMES).startswith("No. back-left is ON")
+
+    maybe = all_off[1:] + [Verdict(item_id="bl", answered=False, possibly_on=True,
+                                   reason_code=ReasonCode.WITNESS_DISAGREE)]
+    assert all_off_answer(maybe, NAMES) == "Not all clear. back-left may be ON. Check it."
 
     assert value_answer(Verdict(item_id="oven", answered=True, state="375"), "350", "oven") == \
         "It shows 375, not 350."
