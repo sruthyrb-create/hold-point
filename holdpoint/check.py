@@ -29,7 +29,7 @@ import numpy as np
 from .budget import BudgetExceeded
 from .decision import DecisionConfig, decide
 from .geometry import state_from_angle
-from .guidance import all_off_answer
+from .guidance import action_for, all_off_answer
 from .meta_client import MetaClient, prepare_frame
 from .quality import frame_reasons
 from .schemas import FrameReadings, Verdict
@@ -209,11 +209,16 @@ def run_stove_check(client: MetaClient, frames: list[np.ndarray], stove: dict, r
                       "verdict": {"answered": v.answered, "state": v.state, "reason": v.reason_code.value,
                                   "possibly_on": v.possibly_on, "evidence_frames": v.evidence_frames}})
 
+    # The camera fix for the first item that couldn't be confirmed (used by the agent's re-checks).
+    unknown = [v for v in verdicts if not v.answered and not v.possibly_on]
+    guidance = action_for(unknown[0], positions.get(unknown[0].item_id)) if unknown and not errors else None
+
     best = max(range(n), key=lambda i: len(found_by_frame[i])) if n else 0
     return {
         "answer": answer,
         "all_clear": not errors and all(v.answered and v.state == "off" for v in verdicts),
         "danger": any((v.answered and v.state != "off") or v.possibly_on for v in verdicts),
+        "guidance": guidance,
         "items": items,
         "calls": sorted(calls, key=lambda c: c["model"]),
         "errors": errors,

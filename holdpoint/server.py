@@ -32,6 +32,8 @@ from .decision import DecisionConfig
 from .profile import HOME_DIR, load_stove
 from .setup_live import SetupFailed, setup_from_frames
 from .voice import HELP, VoiceError, parse_intent, transcribe
+from . import agent as agent_mod
+from pydantic import BaseModel
 
 STATIC = Path(__file__).resolve().parent / "static"
 MAX_FRAMES = 6
@@ -136,7 +138,7 @@ async def check(frames: list[UploadFile] = File(...), x_holdpoint_passcode: str 
 # What the phone does after each spoken command. "check" = capture frames and run a stove check.
 INTENT_REPLY = {
     "check_stove": ("check", "Checking the stove. Hold still."),
-    "leaving": ("check", "Okay. Checking the stove first. Hold still."),
+    "leaving": ("agent", "Okay. Let's check the house."),
     "check_oven": (None, "Oven display check isn't ready yet. Say: check the stove."),
     None: (None, HELP),
 }
@@ -179,3 +181,69 @@ async def setup(frames: list[UploadFile] = File(...), knobs: int = 4,
             raise HTTPException(422, str(e))
         except BudgetExceeded as e:
             raise HTTPException(402, f"Budget cap reached: {e}")
+
+
+# ---------------------------------------------------------------- leaving-home agent
+
+CHECKABLE = {"stove"}                    # items with a verified check today
+DEFAULT_CHECKLIST = ["stove", "oven display"]
+_sessions: dict[str, agent_mod.Session] = {}
+
+
+def leaving_checklist(home: Path = HOME_DIR) -> list[str]:
+    """The user's own list, from home/profile.json ("leaving_checklist"), else the default."""
+    try:
+        items = json.loads((home / "profile.json").read_text()).get("leaving_checklist")
+    except (OSError, ValueError):
+        items = None
+    return [str(i).lower() for i in items] if items else list(DEFAULT_CHECKLIST)
+
+
+class AgentStart(BaseModel):
+    said: str = ""
+
+
+def _agent_reply(s: agent_mod.Session, step: agent_mod.Step, check: dict | None = None) -> dict:
+    out = {"session": s.id, "action": step.action, "item": step.item, "say": step.say,
+           "planner": s.planner, "trace": s.trace, "check": check}
+    if step.action == "done":
+        _sessions.pop(s.id, None)
+        log_check({"answer": step.summary, "all_clear": step.all_clear, "cost_usd": 0.0})
+        out.update(summary=step.summary, all_clear=step.all_clear, record=step.summary)
+    return out
+
+
+@app.post("/api/agent/start")
+async def agent_start(body: AgentStart, x_holdpoint_passcode: str | None = Header(None)):
+    _check_passcode(x_holdpoint_passcode)
+    try:
+        s, step = await run_in_threadpool(agent_mod.start, _client(), leaving_checklist(), CHECKABLE, body.said)
+    except BudgetExceeded as e:
+        raise HTTPException(402, f"Budget cap reached: {e}")
+    _sessions.clear()                    # one walk-through at a time
+    _sessions[s.id] = s
+    return _agent_reply(s, step)
+
+
+@app.post("/api/agent/step")
+async def agent_step(session: str, frames: list[UploadFile] = File(...),
+                     x_holdpoint_passcode: str | None = Header(None)):
+    _check_passcode(x_holdpoint_passcode)
+    s = _sessions.get(session)
+    if s is None or s.pending is None:
+        raise HTTPException(409, "That walk-through has ended. Say: I'm leaving, check the house.")
+    if _busy.locked():
+        raise HTTPException(429, "A check is already running.")
+    async with _busy:
+        images = await _read_images(frames)
+        try:
+            if s.pending == "stove":
+                stove, refs = _stove()
+                result = await run_in_threadpool(run_stove_check, _client(), images, stove, refs, CFG)
+            else:                        # cannot happen: only CHECKABLE items are ever pending
+                raise HTTPException(500, f"No check for {s.pending}.")
+            save_frames(images, result)
+            step = await run_in_threadpool(agent_mod.submit, _client(), s, result)
+        except BudgetExceeded as e:
+            raise HTTPException(402, f"Budget cap reached: {e}")
+    return _agent_reply(s, step, check=result)

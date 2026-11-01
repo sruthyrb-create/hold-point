@@ -37,6 +37,9 @@
     background: transparent; color: var(--text); font-size: 1.6rem; font-weight: 800; cursor: pointer; }
   #talk.rec { background: var(--danger); border-color: var(--danger); color: #fff; }
   #heard { color: var(--muted); font-size: 1rem; margin: 8px 2px 0; min-height: 1.4em; }
+  #leave { width: 100%; min-height: 64px; margin-top: 10px; border: 1px solid var(--line); border-radius: 14px;
+    background: var(--panel); color: var(--text); font-size: 1.15rem; font-weight: 700; cursor: pointer; }
+  #agentlog li { margin: 4px 0; font-size: .85rem; } #agentlog { padding-left: 18px; margin: 6px 0 10px; }
   #go:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
     outline: 4px solid #fff; outline-offset: 3px; }
 
@@ -79,6 +82,7 @@
 
   <button id="go" type="button">Start camera</button>
   <button id="talk" type="button" aria-describedby="heard">Speak</button>
+  <button id="leave" type="button">I'm leaving: check the house</button>
   <p id="heard"></p>
 
   <label class="row"><input id="speak" type="checkbox"> Read answers aloud with the phone's voice</label>
@@ -89,6 +93,8 @@
     <img id="overlay" alt="Frame with each knob outlined by SAM 3.1 and its measured grip-bar direction drawn as a line">
     <table id="knobs" aria-label="Each knob: what each witness read, and the decision"></table>
     <table id="calls" aria-label="Meta model calls"></table>
+    <p class="meta" id="agenthead" hidden>Leaving-home agent: what the planner decided, step by step</p>
+    <ol id="agentlog" hidden></ol>
     <p class="meta" id="record"></p>
   </details>
 
@@ -269,7 +275,71 @@ function showPanel(r) {
   $("record").textContent = r.record ? `Saved: ${r.record}` : "";
 }
 
-go.onclick = () => { if (busy) return; stream ? check() : startCamera(); };
+go.onclick = () => { if (busy) return; if (!stream) return startCamera(); agent ? agentStep() : check(); };
+
+// ---------------------------------------------------------------- leaving-home agent
+// Muse Wonder plans the walk-through; each step the user points the phone and taps the
+// big button; the verified result goes back to Wonder; the final summary comes from code.
+let agent = null;
+
+function showAgent(r) {
+  const log = $("agentlog"); $("agenthead").hidden = false; log.hidden = false;
+  log.innerHTML = r.trace.map(t => `<li><code>${esc(t.model)}</code> → ${esc(t.call)}${t.said ? `: “${esc(t.said)}”` : ""}${t.seconds ? ` · ${t.seconds}s` : ""}</li>`).join("");
+}
+
+function agentNext(r) {
+  showAgent(r);
+  if (r.check) showPanel(r.check);
+  if (r.action === "check") {
+    agent = { id: r.session, item: r.item };
+    go.textContent = `Check the ${r.item}`;
+    say(r.say, r.check && r.check.danger ? "danger" : "");
+    if (r.check) buzz(r.check.danger ? [300, 120, 300] : r.check.all_clear ? 120 : [80, 80, 80]);
+  } else {
+    agent = null;
+    go.textContent = "Check the stove";
+    say(r.say, r.all_clear ? "clear" : "danger");
+    buzz(r.all_clear ? [120, 80, 120] : [300, 120, 300]);
+    $("record").textContent = r.record ? `Saved: ${r.record}` : "";
+  }
+}
+
+async function agentStart(said = "") {
+  if (!passcode) { $("passbox").hidden = false; say("Enter the passcode first."); return; }
+  if (!stream) { await startCamera(); if (!stream) return; }
+  busy = true; go.disabled = true;
+  say("Planning the check.");
+  try {
+    const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 60000);
+    const res = await fetch("/api/agent/start", { method: "POST", signal: ctrl.signal,
+      headers: { "X-Holdpoint-Passcode": passcode, "Content-Type": "application/json" },
+      body: JSON.stringify({ said }) });
+    clearTimeout(timer);
+    if (!res.ok) { const e = await res.json().catch(() => ({})); say(e.detail || "Couldn't start the check.", "unsure"); return; }
+    $("panel").open = true;
+    agentNext(await res.json());
+  } catch (e) {
+    say(explain(e), "unsure");
+  } finally {
+    busy = false; go.disabled = false;
+  }
+}
+
+async function agentStep() {
+  busy = true; go.disabled = true; const label = go.textContent; go.textContent = "Checking…";
+  say("Checking. Hold still.");
+  try {
+    const r = await send(`/api/agent/step?session=${encodeURIComponent(agent.id)}`, await captureForm());
+    if (!r) { go.textContent = label; return; }
+    agentNext(r);
+  } catch (e) {
+    say(explain(e), "unsure"); go.textContent = label;
+  } finally {
+    busy = false; go.disabled = false;
+  }
+}
+
+$("leave").onclick = () => { if (!busy) agentStart(); };
 
 // ---------------------------------------------------------------- voice
 // Tap Speak, say the command, tap again (stops by itself after 6 s). The audio is
@@ -329,6 +399,7 @@ async function stopTalk() {
       if (!stream) await startCamera();
       if (stream) { talk.disabled = false; await check(r.reply); return; }
     }
+    if (r.action === "agent") { talk.disabled = false; await agentStart(r.transcript); return; }
     say(r.reply, r.intent ? "" : "unsure");
   } catch (e) {
     say(explain(e), "unsure");
