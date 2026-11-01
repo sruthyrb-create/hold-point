@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PRICES_FILE = ROOT / "prices.json"
 LEDGER_FILE = ROOT / ".holdpoint" / "ledger.jsonl"
 DEFAULT_CAP_USD = float(os.environ.get("HOLDPOINT_BUDGET_USD", "120"))
+_WRITE_LOCK = threading.Lock()  # the live app records calls from several threads at once
 
 
 class BudgetExceeded(RuntimeError):
@@ -77,7 +79,7 @@ class Ledger:
 
     def _write(self, entry: dict) -> float:
         entry["t"] = time.time()
-        with self.file.open("a") as f:
+        with _WRITE_LOCK, self.file.open("a") as f:
             f.write(json.dumps(entry) + "\n")
         return entry["cost_usd"]
 

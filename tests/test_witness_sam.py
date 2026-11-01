@@ -115,3 +115,20 @@ def test_assign_knobs_edges():
     two_right = [obj(900, 980), obj(1200, 1279)]         # cut off on the right
     assert list(assign_knobs(two_right, ids, 1280)) == ["k1", "k2"]
     assert assign_knobs([obj(500, 580)], ids, 1280) == {}   # no edge clue: refuse to guess
+
+
+def test_pick_row_ignores_a_pan_lid_knob():
+    from holdpoint.witness_sam import pick_row
+    row = [obj(100, 160, 80, 140), obj(250, 310, 82, 142), obj(800, 860, 80, 140), obj(950, 1010, 81, 141)]
+    lid = obj(600, 700, 400, 500)                       # lower down and bigger
+    picked = pick_row(row + [lid], 4)
+    assert picked == row
+    assert list(assign_knobs(row + [lid], ["k1", "k2", "k3", "k4"], 1280)) == ["k1", "k2", "k3", "k4"]
+
+
+def test_pick_row_refuses_when_extra_is_on_the_row():
+    from holdpoint.witness_sam import pick_row
+    row = [obj(100, 160, 80, 140), obj(250, 310, 82, 142), obj(800, 860, 80, 140), obj(950, 1010, 81, 141)]
+    extra = obj(500, 560, 80, 140)                      # a fifth "knob" in the same row: ambiguous
+    assert len(pick_row(row + [extra], 4)) == 5
+    assert assign_knobs(row + [extra], ["k1", "k2", "k3", "k4"], 1280) == {}

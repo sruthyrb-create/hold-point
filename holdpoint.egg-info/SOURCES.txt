@@ -2,6 +2,7 @@ README.md
 pyproject.toml
 holdpoint/__init__.py
 holdpoint/budget.py
+holdpoint/check.py
 holdpoint/decision.py
 holdpoint/geometry.py
 holdpoint/guidance.py
@@ -9,6 +10,7 @@ holdpoint/meta_client.py
 holdpoint/profile.py
 holdpoint/quality.py
 holdpoint/schemas.py
+holdpoint/server.py
 holdpoint/witness_sam.py
 holdpoint/witness_vlm.py
 holdpoint.egg-info/PKG-INFO
@@ -16,6 +18,8 @@ holdpoint.egg-info/SOURCES.txt
 holdpoint.egg-info/dependency_links.txt
 holdpoint.egg-info/requires.txt
 holdpoint.egg-info/top_level.txt
+holdpoint/static/index.html
 tests/test_api_layer.py
 tests/test_core.py
+tests/test_live.py
 tests/test_witness_sam.py

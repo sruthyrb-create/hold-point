@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>Hold Point</title>
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #15191f; --line: #2a313b; --text: #f4f6f8; --muted: #a8b0bb;
+    --accent: #ffd23f; --accent-ink: #111; --clear: #3ddc84; --danger: #ff5a52; --unsure: #ffb347;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 18px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 12px 16px 40px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  h1 { font-size: 1.15rem; margin: 0; letter-spacing: .02em; }
+  header span { color: var(--muted); font-size: .85rem; }
+
+  .camera { position: relative; background: #000; border-radius: 14px; overflow: hidden;
+    aspect-ratio: 4 / 3; border: 1px solid var(--line); }
+  video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .camera .hint { position: absolute; inset: 0; display: grid; place-items: center; text-align: center;
+    padding: 20px; color: var(--muted); }
+
+  #answer { min-height: 3.2em; margin: 16px 0 12px; padding: 16px 18px; border-radius: 14px;
+    background: var(--panel); border: 2px solid var(--line); font-size: 1.75rem; font-weight: 700; line-height: 1.25; }
+  #answer.clear { border-color: var(--clear); }
+  #answer.danger { border-color: var(--danger); }
+  #answer.unsure { border-color: var(--unsure); }
+
+  #go { width: 100%; min-height: 128px; border: 0; border-radius: 18px; background: var(--accent);
+    color: var(--accent-ink); font-size: 1.9rem; font-weight: 800; cursor: pointer; }
+  #go:disabled { opacity: .55; }
+  #go:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+    outline: 4px solid #fff; outline-offset: 3px; }
+
+  .row { display: flex; gap: 10px; align-items: center; margin: 14px 0 0; color: var(--muted); }
+  .row input[type=checkbox] { width: 26px; height: 26px; }
+  #passbox { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+  #passbox input { width: 100%; font-size: 1.2rem; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: #0f1318; color: var(--text); margin: 8px 0; }
+  #passbox button { font-size: 1.1rem; padding: 12px 18px; border-radius: 10px; border: 0; background: var(--accent);
+    color: var(--accent-ink); font-weight: 700; }
+
+  details { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px; }
+  summary { cursor: pointer; padding: 10px 0; font-weight: 700; }
+  .meta { color: var(--muted); font-size: .9rem; margin: 6px 0 10px; }
+  #overlay { width: 100%; border-radius: 10px; display: none; margin: 6px 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: 8px 0 12px; }
+  th, td { text-align: left; padding: 6px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .on { color: var(--danger); font-weight: 700; } .off { color: var(--clear); } .na { color: var(--unsure); }
+  code { font-size: .8rem; color: var(--muted); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Hold Point</h1><span>the check that won't guess</span></header>
+
+  <section id="passbox" hidden>
+    <label for="pass">Passcode</label>
+    <input id="pass" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <button id="savepass" type="button">Save</button>
+  </section>
+
+  <div class="camera" aria-hidden="true">
+    <video id="video" playsinline muted></video>
+    <div class="hint" id="hint">Camera is off. Tap the button below to start it.</div>
+  </div>
+
+  <p id="answer" role="status" aria-live="assertive" aria-atomic="true">Point the phone at the stove knobs.</p>
+
+  <button id="go" type="button">Start camera</button>
+
+  <label class="row"><input id="speak" type="checkbox"> Read answers aloud with the phone's voice</label>
+
+  <details id="panel">
+    <summary>Model calls for this check</summary>
+    <p class="meta" id="summary">No check yet.</p>
+    <img id="overlay" alt="Frame with each knob outlined by SAM 3.1 and its measured grip-bar direction drawn as a line">
+    <table id="knobs" aria-label="Each knob: what each witness read, and the decision"></table>
+    <table id="calls" aria-label="Meta model calls"></table>
+    <p class="meta" id="record"></p>
+  </details>
+
+  <details id="setupbox">
+    <summary>Set up the stove</summary>
+    <p class="meta">Do this once, from where you normally stand. Turn <strong>every knob OFF</strong>,
+      point the phone at all the knobs, hold still, then tap the button. Redo it if you move the phone a lot
+      or knobs that are off keep reading a few degrees away from 0.</p>
+    <label class="row">Number of knobs <input id="nknobs" type="number" min="1" max="6" value="4" style="width:4em;font-size:1.1rem"></label>
+    <p><button id="setupgo" type="button" style="font-size:1.1rem;padding:14px 18px;border-radius:10px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:700">Save all-OFF setup</button></p>
+    <img id="setupimg" alt="Setup frame: each knob circled with its OFF direction drawn as a red line" style="width:100%;border-radius:10px;display:none">
+  </details>
+</main>
+
+<script>
+const FRAMES = 4, GAP_MS = 250, MAX_SIDE = 1280;
+const $ = id => document.getElementById(id);
+const video = $("video"), go = $("go"), answer = $("answer");
+let stream = null, busy = false;
+
+function store(key, value) { try { value === undefined ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch (e) {} }
+function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+
+let passcode = load("hp-pass");
+if (!passcode) $("passbox").hidden = false;
+$("savepass").onclick = () => {
+  passcode = $("pass").value.trim();
+  if (passcode) { store("hp-pass", passcode); $("passbox").hidden = true; say("Saved. Tap Start camera."); }
+};
+$("speak").checked = load("hp-speak") === "1";
+$("speak").onchange = e => store("hp-speak", e.target.checked ? "1" : "0");
+
+function say(text, kind) {
+  answer.className = kind || "";
+  answer.textContent = text;
+  if ($("speak").checked && "speechSynthesis" in window) {
+    speechSynthesis.cancel();
+    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+}
+function buzz(pattern) { if (navigator.vibrate) navigator.vibrate(pattern); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+  } catch (e) {
+    say("Can't open the camera. Allow camera access for this page, then tap again.", "unsure");
+    return;
+  }
+  video.srcObject = stream;
+  await video.play();
+  $("hint").hidden = true;
+  go.textContent = "Check the stove";
+  say("Camera on. Hold the phone sideways, close enough that the knob row fills the screen, then tap Check.");
+}
+
+// Android stops the camera when the screen sleeps or you switch apps; restart it if so.
+async function ensureCamera() {
+  const live = stream && stream.getVideoTracks().some(t => t.readyState === "live");
+  if (!live || video.paused || !video.videoWidth) {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    await startCamera();
+    if (!stream) throw new Error("camera could not start");
+    await sleep(600);   // let exposure settle
+  }
+}
+
+async function grabFrame() {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) throw new Error("camera has no picture yet");
+  const s = Math.min(1, MAX_SIDE / Math.max(w, h));
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * s); c.height = Math.round(h * s);
+  c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+  if (!blob) throw new Error("couldn't take a frame from the camera");
+  return blob;
+}
+
+// Say what actually went wrong, so a camera problem isn't reported as a network problem.
+function explain(e) {
+  if (e.name === "AbortError") return "That took too long. Try again.";
+  if (e.name === "TypeError" && /fetch|network|load/i.test(e.message)) return "Can't reach Hold Point. Check the laptop and the link.";
+  return `Problem: ${e.message || e.name}. Tap again.`;
+}
+
+async function captureForm(count = FRAMES) {
+  await ensureCamera();
+  const form = new FormData();
+  for (let i = 0; i < count; i++) {
+    form.append("frames", await grabFrame(), `frame${i}.jpg`);
+    if (i < count - 1) await sleep(GAP_MS);
+  }
+  buzz(40);
+  return form;
+}
+
+// POST frames; returns parsed JSON, or null after telling the user what went wrong.
+async function send(url, form) {
+  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 90000);
+  const res = await fetch(url, { method: "POST", body: form, signal: ctrl.signal,
+    headers: { "X-Holdpoint-Passcode": passcode } });
+  clearTimeout(timer);
+  if (res.status === 401) { store("hp-pass"); passcode = null; $("passbox").hidden = false; say("Wrong passcode. Enter it again.", "unsure"); return null; }
+  if (res.status === 429) { say("Still finishing the last check.", "unsure"); return null; }
+  if (!res.ok) { const e = await res.json().catch(() => ({})); say(e.detail || "Something went wrong. Try again.", "unsure"); return null; }
+  return res.json();
+}
+
+async function setupStove() {
+  if (busy) return;
+  if (!passcode) { $("passbox").hidden = false; say("Enter the passcode first."); return; }
+  if (!stream) { await startCamera(); if (!stream) return; }
+  if (!confirm("Is every knob turned OFF?")) return;
+  busy = true; go.disabled = true; $("setupgo").disabled = true;
+  say("Saving setup. Hold still.");
+  try {
+    const n = Math.max(1, Math.min(6, parseInt($("nknobs").value, 10) || 4));
+    const r = await send(`/api/setup?knobs=${n}`, await captureForm(6));   // more frames: setup is the reference
+    if (!r) return;
+    say(r.message, "clear");
+    if (r.overlay) { $("setupimg").src = r.overlay; $("setupimg").style.display = "block"; }
+  } catch (e) {
+    say(explain(e), "unsure");
+  } finally {
+    busy = false; go.disabled = false; $("setupgo").disabled = false;
+  }
+}
+
+async function check() {
+  if (!passcode) { $("passbox").hidden = false; say("Enter the passcode first."); return; }
+  busy = true; go.disabled = true; go.textContent = "Checking…";
+  say("Checking. Hold still.");
+  try {
+    const r = await send("/api/check", await captureForm());
+    if (!r) return;
+    const kind = r.danger ? "danger" : r.all_clear ? "clear" : "unsure";
+    say(r.answer, kind);
+    buzz(kind === "danger" ? [300, 120, 300] : kind === "clear" ? 120 : [80, 80, 80]);
+    showPanel(r);
+  } catch (e) {
+    say(explain(e), "unsure");
+  } finally {
+    busy = false; go.disabled = false; go.textContent = "Check again";
+  }
+}
+
+const cls = s => s === "on" ? "on" : s === "off" ? "off" : "na";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function showPanel(r) {
+  $("summary").textContent = `${r.frames} frames · ${r.seconds}s · $${r.cost_usd.toFixed(4)}` +
+    (Object.keys(r.quality).length ? ` · frame problems: ${Object.entries(r.quality).map(([f, q]) => `${f}: ${q.join(", ")}`).join("; ")}` : "") +
+    (r.errors.length ? ` · errors: ${r.errors.join("; ")}` : "");
+  const img = $("overlay");
+  if (r.overlay) { img.src = r.overlay; img.style.display = "block"; } else img.style.display = "none";
+
+  let k = "<tr><th>Knob</th><th>A · Muse Spark (per frame)</th><th>B · SAM 3.1 + geometry (turn from OFF)</th><th>Decision</th></tr>";
+  for (const it of r.items) {
+    const a = it.spark.map(x => x.state ? `<span class="${cls(x.state)}">${esc(x.state)} ${x.confidence.toFixed(2)}</span>` : `<span class="na">${esc(x.reason)}</span>`).join(" · ") || '<span class="na">none</span>';
+    const b = it.sam.map(x => x.state ? `<span class="${cls(x.state)}">${esc(x.state)} ${x.turn_deg >= 0 ? "+" : ""}${x.turn_deg}°</span>`
+      : `<span class="na">${esc(x.reason)}${x.turn_deg != null ? ` ${x.turn_deg}°` : ""}</span>`).join(" · ")
+      + (it.sam_middle_deg != null ? `<br><small>middle: ${it.sam_middle_deg >= 0 ? "+" : ""}${it.sam_middle_deg}°</small>` : "");
+    const v = it.verdict;
+    const d = v.answered ? `<span class="${cls(v.state)}">${esc(v.state)}</span> (${v.evidence_frames} frames agree)`
+      : `<span class="na">can't confirm: ${esc(v.reason)}</span>${v.possibly_on ? ' <span class="on">may be ON</span>' : ""}`;
+    k += `<tr><td>${esc(it.name)}</td><td>${a}</td><td>${b}</td><td>${d}</td></tr>`;
+  }
+  $("knobs").innerHTML = k;
+
+  let c = "<tr><th>Meta model</th><th>Job</th><th>Time</th><th>Result</th></tr>";
+  for (const x of r.calls) c += `<tr><td><code>${esc(x.model)}</code></td><td>${esc(x.job)}</td><td>${x.seconds}s</td><td>${esc(x.result)}</td></tr>`;
+  c += `<tr><td><code>decision layer</code></td><td>both witnesses must agree in ≥3 frames, else abstain (no AI)</td><td></td><td></td></tr>`;
+  $("calls").innerHTML = c;
+  $("record").textContent = r.record ? `Saved: ${r.record}` : "";
+}
+
+go.onclick = () => { if (busy) return; stream ? check() : startCamera(); };
+$("setupgo").onclick = setupStove;
+</script>
+</body>
+</html>

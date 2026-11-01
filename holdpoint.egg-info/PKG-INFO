@@ -8,5 +8,9 @@ Requires-Dist: opencv-python-headless>=4.9
 Requires-Dist: pydantic>=2.6
 Requires-Dist: openai>=1.40
 Requires-Dist: meta-sam-parser>=0.1
+Requires-Dist: fastapi>=0.110
+Requires-Dist: uvicorn>=0.29
+Requires-Dist: python-multipart>=0.0.9
 Provides-Extra: dev
 Requires-Dist: pytest>=8; extra == "dev"
+Requires-Dist: httpx>=0.27; extra == "dev"

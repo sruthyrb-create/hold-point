@@ -156,13 +156,41 @@ def bar_direction(gray: np.ndarray, cx: float, cy: float, r: float) -> tuple[flo
 
 # ---------------------------------------------------------------- identity + reading
 
+def pick_row(found: list[SamObject], n: int) -> list[SamObject]:
+    """If SAM found MORE than n knob-like things (e.g. the knob on a pan lid), keep the
+    n that sit in one horizontal row with similar sizes, like a stove's knob row.
+    Returns `found` unchanged if there's no clear row (the caller then refuses to guess)."""
+    if len(found) <= n or n < 2:
+        return found
+    by_y = sorted(found, key=lambda o: o.centre[1])
+    best, best_score = None, None
+    for i in range(len(by_y) - n + 1):
+        group = by_y[i:i + n]
+        sizes = [min(o.box[2] - o.box[0], o.box[3] - o.box[1]) for o in group]
+        d = float(np.median(sizes))
+        y_spread = (group[-1].centre[1] - group[0].centre[1]) / d       # in knob diameters
+        size_spread = (max(sizes) - min(sizes)) / d
+        score = y_spread + size_spread
+        if best_score is None or score < best_score:
+            best, best_score = group, score
+    ys = [o.centre[1] for o in best]
+    d = float(np.median([min(o.box[2] - o.box[0], o.box[3] - o.box[1]) for o in best]))
+    if max(ys) - min(ys) > 0.75 * d:          # not a clean row: don't pick
+        return found
+    rest = [o for o in found if o not in best]
+    # the row must be clearly separate from the extras (an extra on the row's line is ambiguous)
+    if any(abs(o.centre[1] - float(np.median(ys))) < 0.75 * d for o in rest):
+        return found
+    return sorted(best, key=lambda o: o.centre[0])
+
+
 def assign_knobs(found: list[SamObject], expected_ids: list[str], image_width: int) -> dict[str, SamObject]:
     """Map detected knobs (left to right) to profile ids (left to right).
 
     Same count -> one to one. Fewer found -> only safe if the missing knobs must be
     past an image edge (a knob is touching that edge, the other side is clear).
     """
-    found = sorted(found, key=lambda o: o.centre[0])
+    found = sorted(pick_row(found, len(expected_ids)), key=lambda o: o.centre[0])
     n, k = len(expected_ids), len(found)
     if k == n:
         return dict(zip(expected_ids, found))
