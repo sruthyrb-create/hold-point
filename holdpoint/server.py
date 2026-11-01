@@ -31,6 +31,7 @@ from .check import run_stove_check
 from .decision import DecisionConfig
 from .profile import HOME_DIR, load_stove
 from .setup_live import SetupFailed, setup_from_frames
+from .voice import HELP, VoiceError, parse_intent, transcribe
 
 STATIC = Path(__file__).resolve().parent / "static"
 MAX_FRAMES = 6
@@ -130,6 +131,35 @@ async def check(frames: list[UploadFile] = File(...), x_holdpoint_passcode: str 
         result["server_seconds"] = round(time.perf_counter() - t, 2)
         save_frames(images, result)
         return result
+
+
+# What the phone does after each spoken command. "check" = capture frames and run a stove check.
+INTENT_REPLY = {
+    "check_stove": ("check", "Checking the stove. Hold still."),
+    "leaving": ("check", "Okay. Checking the stove first. Hold still."),
+    "check_oven": (None, "Oven display check isn't ready yet. Say: check the stove."),
+    None: (None, HELP),
+}
+
+
+@app.post("/api/voice")
+async def voice(audio: UploadFile = File(...), x_holdpoint_passcode: str | None = Header(None)):
+    """Spoken command (WAV) -> Muse Voice Transcribe -> what to do next."""
+    _check_passcode(x_holdpoint_passcode)
+    data = await audio.read()
+    t = time.perf_counter()
+    try:
+        heard = await run_in_threadpool(transcribe, _client(), data)
+    except VoiceError as e:
+        raise HTTPException(422, str(e))
+    except BudgetExceeded as e:
+        raise HTTPException(402, f"Budget cap reached: {e}")
+    intent = parse_intent(heard["transcript"]) if heard["transcript"] else None
+    action, reply = INTENT_REPLY[intent]
+    if not heard["transcript"]:
+        reply = "I didn't hear anything. Tap, speak, then tap again."
+    return {"transcript": heard["transcript"], "intent": intent, "action": action, "reply": reply,
+            "audio_seconds": heard["seconds"], "seconds": round(time.perf_counter() - t, 2)}
 
 
 @app.post("/api/setup")

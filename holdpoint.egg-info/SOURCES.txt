@@ -11,6 +11,8 @@ holdpoint/profile.py
 holdpoint/quality.py
 holdpoint/schemas.py
 holdpoint/server.py
+holdpoint/setup_live.py
+holdpoint/voice.py
 holdpoint/witness_sam.py
 holdpoint/witness_vlm.py
 holdpoint.egg-info/PKG-INFO
@@ -22,4 +24,5 @@ holdpoint/static/index.html
 tests/test_api_layer.py
 tests/test_core.py
 tests/test_live.py
+tests/test_voice.py
 tests/test_witness_sam.py
