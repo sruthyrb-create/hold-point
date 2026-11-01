@@ -205,3 +205,11 @@ def test_setup_tolerates_one_wobbly_frame(tmp_path):
     objs = frame_with([0, 0, 0, 0])[1]
     r = setup_from_frames(client, imgs, 4, segment=lambda c, im, p, tag="": objs, home=tmp_path)
     assert r["frames_used"] == 5 and abs(r["off_directions"][0] - 2.5) < 3
+
+
+def test_consensus_off_window_is_wider_but_on_threshold_unchanged():
+    assert states(geometry_consensus(geo_frames([7.5, 6.6, 7.9, 6.2]), ["k"])) == ["off"] * 4   # viewpoint bias
+    assert states(geometry_consensus(geo_frames([12, 13, 11, 14]), ["k"])) == [None] * 4       # slight turn: unsure
+    assert states(geometry_consensus(geo_frames([16, 15, 17, 16]), ["k"])) == ["on"] * 4
+    one = geo_frames([7.5])[0].items[0]                                                          # a single frame keeps +/-6
+    assert one.state is None

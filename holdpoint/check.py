@@ -41,6 +41,13 @@ from .witness_vlm import read_frames
 
 UNAVAILABLE = "Can't check right now. Try again in a moment."
 
+# OFF window for the MIDDLE of several agreeing frames (single frames keep +/-6).
+# Measured 31 Oct after phone setup: untouched knobs' middle turn ranged -0.9..+8.1 deg
+# (bias from small viewpoint changes, not noise); the smallest real turn measured was
+# +13 deg (slight turn, must stay "unsure") and real ON settings 28-43 deg. ON still
+# starts beyond 14 deg, and Muse Spark must independently say OFF too.
+CONSENSUS_OFF_DEG = 8.0
+
 GREEN, RED, YELLOW = (60, 200, 60), (40, 40, 230), (0, 210, 240)
 
 
@@ -118,7 +125,7 @@ def geometry_consensus(geo: list[FrameReadings], ids: list[str], max_spread: flo
             continue
         middle = float(np.median(turns))
         middle = (middle + 90.0) % 180.0 - 90.0
-        consensus = state_from_angle(iid, middle, 0.0, period=180.0)
+        consensus = state_from_angle(iid, middle, 0.0, period=180.0, off_tolerance=CONSENSUS_OFF_DEG)
         for fi, r in measured:
             f = out[fi]
             f.items = [consensus.model_copy(update={"angle_deg": r.angle_deg}) if x is r else x for x in f.items]

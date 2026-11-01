@@ -59,14 +59,16 @@ def read_knob(item_id: str, knob_mask: Optional[np.ndarray], pointer_mask: Optio
 
 
 def state_from_angle(item_id: str, angle: float, off_angle_deg: float = 0.0,
-                     period: float = 360.0) -> ItemReading:
+                     period: float = 360.0, off_tolerance: float = OFF_TOLERANCE_DEG,
+                     on_beyond: float = OFF_TOLERANCE_DEG + AMBIGUOUS_BAND_DEG) -> ItemReading:
     """Shared rule: a narrow OFF window, an 'unsure' band around it, everything else ON.
-    period=180 for line-like features (a bar), whose direction can't be told apart."""
+    period=180 for line-like features (a bar), whose direction can't be told apart.
+    on_beyond (where ON starts) never moves; off_tolerance can be set per use."""
     d = (angle - off_angle_deg) % period
     off_by = min(d, period - d)
-    if off_by <= OFF_TOLERANCE_DEG:
-        state, conf = "off", 1.0 - off_by / (OFF_TOLERANCE_DEG + AMBIGUOUS_BAND_DEG)
-    elif off_by <= OFF_TOLERANCE_DEG + AMBIGUOUS_BAND_DEG:
+    if off_by <= off_tolerance:
+        state, conf = "off", 1.0 - off_by / on_beyond
+    elif off_by <= on_beyond:
         return ItemReading(item_id=item_id, visible=True, state=None, confidence=0.0,
                            reason_code=ReasonCode.LOW_EVIDENCE, angle_deg=angle)
     else:
