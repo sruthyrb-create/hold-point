@@ -44,7 +44,7 @@ def test_wonder_rechecks_then_finishes(tmp_path):
     s, step = agent.start(c, ["stove"], {"stove"}, "I'm leaving")
     assert step.action == "check" and step.item == "stove" and step.say == "Point at the stove knobs."
     step = agent.submit(c, s, UNSURE)
-    assert step.action == "check" and step.say.startswith(UNSURE["answer"])   # verified answer first
+    assert step.action == "check" and step.say == "Three off. Can't confirm knob 1. Move closer to the knobs."
     tool_msg = c.client.sent[-1][-1]
     assert tool_msg["role"] == "tool" and json.loads(tool_msg["content"])["guidance"] == "Move closer."
     step = agent.submit(c, s, OFF)
@@ -138,3 +138,11 @@ def test_server_agent_flow(tmp_path, monkeypatch):
     assert r["action"] == "done" and r["all_clear"] and r["record"].startswith("All clear.")
     assert http.post(f"/api/agent/step?session={r['session']}", headers=h,
                      files=[("frames", ("f.jpg", img, "image/jpeg"))]).status_code == 409
+
+
+def test_guidance_not_repeated(tmp_path):
+    c = client(tmp_path, [call("check_item", item="stove", instruction="x"),
+                          call("check_item", item="stove", instruction="Move closer to the knobs.")])
+    s, step = agent.start(c, ["stove"], {"stove"})
+    step = agent.submit(c, s, UNSURE)
+    assert step.say == "Three off. Can't confirm knob 1. Move closer to the knobs."

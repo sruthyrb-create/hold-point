@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -115,9 +116,17 @@ def status(x_holdpoint_passcode: str | None = Header(None)):
             "cap_usd": ledger.cap}
 
 
+TRUTH = re.compile(r"^(all_off|(on|slight):knob_[1-6])$")
+
+
 @app.post("/api/check")
-async def check(frames: list[UploadFile] = File(...), x_holdpoint_passcode: str | None = Header(None)):
+async def check(frames: list[UploadFile] = File(...), truth: str | None = None,
+                x_holdpoint_passcode: str | None = Header(None)):
+    """truth (evaluation only): what the stove REALLY is, e.g. "all_off", "on:knob_3",
+    "slight:knob_1". Saved with the check's frames; never used to decide the answer."""
     _check_passcode(x_holdpoint_passcode)
+    if truth is not None and not TRUTH.match(truth):
+        raise HTTPException(400, "truth must be all_off, on:knob_N or slight:knob_N")
     if _busy.locked():
         raise HTTPException(429, "A check is already running.")
     async with _busy:
@@ -131,7 +140,7 @@ async def check(frames: list[UploadFile] = File(...), x_holdpoint_passcode: str 
             raise HTTPException(402, f"Budget cap reached: {e}")
         result["record"] = log_check(result)
         result["server_seconds"] = round(time.perf_counter() - t, 2)
-        save_frames(images, result)
+        save_frames(images, {**result, "truth": truth} if truth else result)
         return result
 
 

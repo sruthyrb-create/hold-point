@@ -254,5 +254,10 @@ def submit(client, s: Session, result: dict) -> Step:
         s.open_call = None
     step = _next(client, s)
     # The user hears the verified answer first; Wonder's wording only says where to point next.
-    step.say = (result.get("answer", "") + " " + step.say).strip() if step.action == "check" else step.say
+    if step.action == "check":
+        answer = result.get("answer", "")
+        g = (result.get("guidance") or "").strip()
+        if g and g.rstrip(".").lower() in step.say.lower() and answer.endswith(g):
+            answer = answer[: -len(g)].strip()          # don't say "Move closer" twice
+        step.say = (answer + " " + step.say).strip()
     return step

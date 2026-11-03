@@ -30,11 +30,11 @@
   #answer.danger { border-color: var(--danger); }
   #answer.unsure { border-color: var(--unsure); }
 
-  #go { width: 100%; min-height: 128px; border: 0; border-radius: 18px; background: var(--accent);
+  #talk { width: 100%; min-height: 128px; border: 0; border-radius: 18px; background: var(--accent);
     color: var(--accent-ink); font-size: 1.9rem; font-weight: 800; cursor: pointer; }
+  #go { width: 100%; min-height: 88px; margin-top: 12px; border: 2px solid var(--accent); border-radius: 18px;
+    background: transparent; color: var(--text); font-size: 1.5rem; font-weight: 800; cursor: pointer; }
   #go:disabled, #talk:disabled { opacity: .55; }
-  #talk { width: 100%; min-height: 96px; margin-top: 12px; border: 2px solid var(--accent); border-radius: 18px;
-    background: transparent; color: var(--text); font-size: 1.6rem; font-weight: 800; cursor: pointer; }
   #talk.rec { background: var(--danger); border-color: var(--danger); color: #fff; }
   #heard { color: var(--muted); font-size: 1rem; margin: 8px 2px 0; min-height: 1.4em; }
   #leave { width: 100%; min-height: 64px; margin-top: 10px; border: 1px solid var(--line); border-radius: 14px;
@@ -75,15 +75,15 @@
 
   <div class="camera" aria-hidden="true">
     <video id="video" playsinline muted></video>
-    <div class="hint" id="hint">Camera is off. Tap the button below to start it.</div>
+    <div class="hint" id="hint">Camera is off. It turns on by itself when you check, and off when the check is done.</div>
   </div>
 
-  <p id="answer" role="status" aria-live="assertive" aria-atomic="true">Point the phone at the stove knobs.</p>
+  <p id="answer" role="status" aria-live="assertive" aria-atomic="true">Tap Speak and say: are the burners off? Or: I'm leaving, check the house.</p>
 
-  <button id="go" type="button">Start camera</button>
   <button id="talk" type="button" aria-describedby="heard">Speak</button>
-  <button id="leave" type="button">I'm leaving: check the house</button>
   <p id="heard"></p>
+  <button id="go" type="button">Check the stove</button>
+  <button id="leave" type="button">I'm leaving: check the house</button>
 
   <label class="row"><input id="speak" type="checkbox"> Read answers aloud with the phone's voice</label>
 
@@ -96,6 +96,22 @@
     <p class="meta" id="agenthead" hidden>Leaving-home agent: what the planner decided, step by step</p>
     <ol id="agentlog" hidden></ol>
     <p class="meta" id="record"></p>
+  </details>
+
+  <details id="evalbox">
+    <summary>Evaluation mode</summary>
+    <p class="meta">For testing only. Set the stove, choose what it REALLY is, then tap <strong>Check the stove</strong>.
+      The label is saved with the check for scoring later; Hold Point never sees it.</p>
+    <label class="row">True state
+      <select id="truth" style="font-size:1.1rem;padding:8px;border-radius:8px">
+        <option value="">Not labelled</option>
+        <option value="all_off">All knobs OFF</option>
+        <option value="on:knob_1">Knob 1 ON</option><option value="on:knob_2">Knob 2 ON</option>
+        <option value="on:knob_3">Knob 3 ON</option><option value="on:knob_4">Knob 4 ON</option>
+        <option value="slight:knob_1">Knob 1 turned slightly</option><option value="slight:knob_2">Knob 2 turned slightly</option>
+        <option value="slight:knob_3">Knob 3 turned slightly</option><option value="slight:knob_4">Knob 4 turned slightly</option>
+      </select></label>
+    <p class="meta" id="evalcount"></p>
   </details>
 
   <details id="setupbox">
@@ -125,6 +141,8 @@ $("savepass").onclick = () => {
   if (passcode) { store("hp-pass", passcode); $("passbox").hidden = true; say("Saved. Tap Start camera."); }
 };
 $("speak").checked = load("hp-speak") === "1";
+$("truth").value = load("hp-truth") || "";
+$("truth").onchange = e => store("hp-truth", e.target.value);
 $("speak").onchange = e => store("hp-speak", e.target.checked ? "1" : "0");
 
 function say(text, kind) {
@@ -149,20 +167,33 @@ async function startCamera() {
   video.srcObject = stream;
   await video.play();
   $("hint").hidden = true;
-  go.textContent = "Check the stove";
-  say("Camera on. Hold the phone sideways, close enough that the knob row fills the screen, then tap Check.");
 }
 
+// The camera runs only while a check needs it.
+let stopTimer = null;
+function stopCamera() {
+  clearTimeout(stopTimer); stopTimer = null;
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; video.srcObject = null; $("hint").hidden = false;
+}
+// After an unsure answer ("Move closer"), keep the camera on briefly for the re-check.
+function stopCameraSoon(ms) { clearTimeout(stopTimer); stopTimer = setTimeout(() => { if (!busy && !agent) stopCamera(); }, ms); }
+
 // Android stops the camera when the screen sleeps or you switch apps; restart it if so.
+let starting = null;   // one camera start at a time, shared by everyone who needs it
 async function ensureCamera() {
+  clearTimeout(stopTimer); stopTimer = null;
+  if (starting) return starting;
   const live = stream && stream.getVideoTracks().some(t => t.readyState === "live");
-  if (!live || video.paused || !video.videoWidth) {
+  if (live && !video.paused && video.videoWidth) return;
+  starting = (async () => {
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = null;
     await startCamera();
     if (!stream) throw new Error("camera could not start");
-    await sleep(600);   // let exposure settle
-  }
+    await sleep(900);   // let focus and exposure settle
+  })();
+  try { await starting; } finally { starting = null; }
 }
 
 async function grabFrame() {
@@ -210,7 +241,6 @@ async function send(url, form) {
 async function setupStove() {
   if (busy) return;
   if (!passcode) { $("passbox").hidden = false; say("Enter the passcode first."); return; }
-  if (!stream) { await startCamera(); if (!stream) return; }
   if (!confirm("Is every knob turned OFF?")) return;
   busy = true; go.disabled = true; $("setupgo").disabled = true;
   say("Saving setup. Hold still.");
@@ -223,7 +253,7 @@ async function setupStove() {
   } catch (e) {
     say(explain(e), "unsure");
   } finally {
-    busy = false; go.disabled = false; $("setupgo").disabled = false;
+    busy = false; go.disabled = false; $("setupgo").disabled = false; stopCamera();
   }
 }
 
@@ -232,16 +262,20 @@ async function check(opening = "Checking. Hold still.") {
   busy = true; go.disabled = true; go.textContent = "Checking…";
   say(opening);
   try {
-    const r = await send("/api/check", await captureForm());
+    const truth = $("truth").value;   // evaluation label (what the stove really is); not used to decide
+    const r = await send("/api/check" + (truth ? `?truth=${encodeURIComponent(truth)}` : ""), await captureForm());
     if (!r) return;
     const kind = r.danger ? "danger" : r.all_clear ? "clear" : "unsure";
     say(r.answer, kind);
     buzz(kind === "danger" ? [300, 120, 300] : kind === "clear" ? 120 : [80, 80, 80]);
     showPanel(r);
+    if (truth) { const n = (parseInt(load("hp-evaln") || "0", 10) || 0) + 1; store("hp-evaln", String(n));
+      $("evalcount").textContent = `Labelled checks saved on this phone: ${n} (last: ${truth}).`; }
+    if (kind === "unsure") stopCameraSoon(20000); else stopCamera();
   } catch (e) {
-    say(explain(e), "unsure");
+    say(explain(e), "unsure"); stopCamera();
   } finally {
-    busy = false; go.disabled = false; go.textContent = "Check again";
+    busy = false; go.disabled = false; go.textContent = "Check the stove";
   }
 }
 
@@ -275,7 +309,7 @@ function showPanel(r) {
   $("record").textContent = r.record ? `Saved: ${r.record}` : "";
 }
 
-go.onclick = () => { if (busy) return; if (!stream) return startCamera(); agent ? agentStep() : check(); };
+go.onclick = () => { if (busy) return; agent ? agentStep() : check(); };
 
 // ---------------------------------------------------------------- leaving-home agent
 // Muse Wonder plans the walk-through; each step the user points the phone and taps the
@@ -298,6 +332,7 @@ function agentNext(r) {
   } else {
     agent = null;
     go.textContent = "Check the stove";
+    stopCamera();
     say(r.say, r.all_clear ? "clear" : "danger");
     buzz(r.all_clear ? [120, 80, 120] : [300, 120, 300]);
     $("record").textContent = r.record ? `Saved: ${r.record}` : "";
@@ -306,20 +341,20 @@ function agentNext(r) {
 
 async function agentStart(said = "") {
   if (!passcode) { $("passbox").hidden = false; say("Enter the passcode first."); return; }
-  if (!stream) { await startCamera(); if (!stream) return; }
   busy = true; go.disabled = true;
   say("Planning the check.");
+  ensureCamera().catch(() => {});   // warm the camera up while Wonder plans
   try {
     const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 60000);
     const res = await fetch("/api/agent/start", { method: "POST", signal: ctrl.signal,
       headers: { "X-Holdpoint-Passcode": passcode, "Content-Type": "application/json" },
       body: JSON.stringify({ said }) });
     clearTimeout(timer);
-    if (!res.ok) { const e = await res.json().catch(() => ({})); say(e.detail || "Couldn't start the check.", "unsure"); return; }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); say(e.detail || "Couldn't start the check.", "unsure"); stopCamera(); return; }
     $("panel").open = true;
     agentNext(await res.json());
   } catch (e) {
-    say(explain(e), "unsure");
+    say(explain(e), "unsure"); stopCamera();
   } finally {
     busy = false; go.disabled = false;
   }
@@ -395,10 +430,7 @@ async function stopTalk() {
     const r = await send("/api/voice", form);
     if (!r) return;
     $("heard").textContent = r.transcript ? `Heard: “${r.transcript}” · Muse Voice Transcribe, ${r.seconds}s` : "";
-    if (r.action === "check") {
-      if (!stream) await startCamera();
-      if (stream) { talk.disabled = false; await check(r.reply); return; }
-    }
+    if (r.action === "check") { talk.disabled = false; await check(r.reply); return; }
     if (r.action === "agent") { talk.disabled = false; await agentStart(r.transcript); return; }
     say(r.reply, r.intent ? "" : "unsure");
   } catch (e) {
