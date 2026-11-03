@@ -1,0 +1,200 @@
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Yes, all four off.", "bucket": "correct"}
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_4\"]}", "bucket": "false_alarm"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "clean", "system": "holdpoint", "answer": "No. knob 2 is ON.", "bucket": "correct"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "clean", "system": "holdpoint", "answer": "No. knob 1 is ON.", "bucket": "correct"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\"]}", "bucket": "correct"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\"]}", "bucket": "false_alarm"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Yes, all four off.", "bucket": "correct"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "clean", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "clean", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "clean", "system": "holdpoint", "answer": "Not all clear. knob 4 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\"]}", "bucket": "wrong_knob"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "clean", "system": "holdpoint", "answer": "No. knob 4 is ON.", "bucket": "correct"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_4\"]}", "bucket": "correct"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_2\"]}", "bucket": "false_alarm"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Yes, all four off.", "bucket": "correct"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "clean", "system": "holdpoint", "answer": "No. knob 3 is ON. Others unconfirmed.", "bucket": "correct"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "clean", "system": "holdpoint", "answer": "No. knob 4 is ON.", "bucket": "correct"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\", \"knob_3\", \"knob_4\"]}", "bucket": "wrong_knob"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\"]}", "bucket": "false_alarm"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Yes, all four off.", "bucket": "correct"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "clean", "system": "holdpoint", "answer": "Yes, all four off.", "bucket": "correct"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_4\"]}", "bucket": "false_alarm"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "clean", "system": "holdpoint", "answer": "No. knob 3 is ON. Others unconfirmed.", "bucket": "correct"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "clean", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_3\"]}", "bucket": "correct"}
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\", \"knob_3\", \"knob_4\"]}", "bucket": "false_alarm"}
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_4\"]}", "bucket": "false_alarm"}
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-132634-027820", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "far", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\"]}", "bucket": "wrong_knob"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132719-622537", "truth": "on:knob_2", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132750-432365", "truth": "slight:knob_1", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\", \"knob_3\", \"knob_4\"]}", "bucket": "wrong_knob"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\"]}", "bucket": "false_alarm"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Can't confirm knob 1. Tilt the phone slightly.", "bucket": "abstain"}
+{"case": "20261103-132827-603743", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\"]}", "bucket": "false_alarm"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-132854-090320", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Can't confirm knob 1. Tilt the phone slightly.", "bucket": "abstain"}
+{"case": "20261103-132917-987732", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\", \"knob_3\", \"knob_4\"]}", "bucket": "false_alarm"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "glare", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-132959-089841", "truth": "slight:knob_3", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133030-566868", "truth": "slight:knob_3", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_4\"]}", "bucket": "correct"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "far", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_4\"]}", "bucket": "correct"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 4 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133109-132181", "truth": "slight:knob_4", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\"]}", "bucket": "wrong_knob"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "far", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 4 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133212-339680", "truth": "slight:knob_4", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 4 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133342-927800", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\"]}", "bucket": "false_alarm"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-133407-782370", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\", \"knob_3\", \"knob_4\"]}", "bucket": "wrong_knob"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133455-324238", "truth": "on:knob_3", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\", \"knob_3\", \"knob_4\"]}", "bucket": "wrong_knob"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_4\"]}", "bucket": "correct"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 4 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 4 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133624-981473", "truth": "on:knob_4", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_4\"]}", "bucket": "wrong_knob"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133705-090912", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\", \"knob_3\", \"knob_4\"]}", "bucket": "false_alarm"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 4 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133728-875879", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\", \"knob_3\", \"knob_4\"]}", "bucket": "false_alarm"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\"]}", "bucket": "false_alarm"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133806-908614", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 4 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Can't confirm knob 1. Tilt the phone slightly.", "bucket": "abstain"}
+{"case": "20261103-133836-775397", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "far", "system": "holdpoint", "answer": "Can't confirm knob 1. Hold still.", "bucket": "abstain"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "correct"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "glare", "system": "holdpoint", "answer": "Can't confirm knob 1. Tilt the phone slightly.", "bucket": "abstain"}
+{"case": "20261103-133858-698054", "truth": "all_off", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_4\"]}", "bucket": "false_alarm"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "dark", "system": "holdpoint", "answer": "Can't confirm knob 1. Turn on a light.", "bucket": "abstain"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "dark", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "blur", "system": "holdpoint", "answer": "Not all clear. knob 1 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "blur", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_4\"]}", "bucket": "wrong_knob"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "far", "system": "holdpoint", "answer": "Not all clear. knob 2 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "far", "system": "baseline", "answer": "{\"all_off\": true, \"knobs_on\": []}", "bucket": "unsafe"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "glare", "system": "holdpoint", "answer": "Not all clear. knob 3 may be ON. Check it.", "bucket": "abstain"}
+{"case": "20261103-133937-787002", "truth": "on:knob_3", "condition": "glare", "system": "baseline", "answer": "{\"all_off\": false, \"knobs_on\": [\"knob_1\", \"knob_2\", \"knob_3\", \"knob_4\"]}", "bucket": "wrong_knob"}
