@@ -187,7 +187,7 @@ def run_stove_check(client: MetaClient, frames: list[np.ndarray], stove: dict, r
     except Exception as e:
         errors.append(f"{SPARK_MODEL}: {type(e).__name__}: {e}"[:200])
 
-    geo = [read_knobs(frames[i], i, found_by_frame[i], refs) for i in range(n)]
+    geo = [read_knobs(frames[i], i, found_by_frame[i], refs, stove.get("row_angle")) for i in range(n)]
     geo_judged = geometry_consensus(geo, ids, min_frames=cfg.min_visible_frames)
     verdicts: list[Verdict] = decide(ids, vlm, geo_judged, quality={i: q for i, q in quality.items() if q}, cfg=cfg)
     answer = UNAVAILABLE if errors else all_off_answer(verdicts, names, positions)

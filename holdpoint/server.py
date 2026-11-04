@@ -105,6 +105,13 @@ async def _read_images(frames: list[UploadFile]) -> list[np.ndarray]:
 
 @app.get("/")
 def page():
+    """Glasses-style, hands-free page: passcode + Start once, then voice only."""
+    return FileResponse(STATIC / "glasses.html")
+
+
+@app.get("/manual")
+def manual():
+    """The page with buttons: stove setup, evaluation mode, and a fallback."""
     return FileResponse(STATIC / "index.html")
 
 
@@ -155,7 +162,8 @@ async def check(frames: list[UploadFile] = File(...), truth: str | None = None, 
 INTENT_REPLY = {
     "check_stove": ("check", "Checking the stove. Hold still."),
     "leaving": ("agent", "Okay. Let's check the house."),
-    "check_oven": ("check_oven", "Checking the oven. Point the phone at the oven display and hold still."),
+    "check_oven": (None, "I can't check the oven display yet. Please check it yourself."),
+    "stop": ("stop", "Okay, stopped."),
     None: (None, HELP),
 }
 
@@ -201,8 +209,10 @@ async def setup(frames: list[UploadFile] = File(...), knobs: int = 4,
 
 # ---------------------------------------------------------------- leaving-home agent
 
-CHECKABLE = {"stove", "oven display"}    # items with a verified check today
-DEFAULT_CHECKLIST = ["stove", "oven display"]
+# The oven display reader (holdpoint/oven.py) is experimental: on 4 Nov its LED-shape witness
+# could not read 16-pixel digits, so it is not part of the walk-through yet.
+CHECKABLE = {"stove"}                    # items with a verified check today
+DEFAULT_CHECKLIST = ["stove"]
 _sessions: dict[str, agent_mod.Session] = {}
 
 
@@ -233,7 +243,8 @@ def _agent_reply(s: agent_mod.Session, step: agent_mod.Step, check: dict | None 
 async def agent_start(body: AgentStart, x_holdpoint_passcode: str | None = Header(None)):
     _check_passcode(x_holdpoint_passcode)
     try:
-        s, step = await run_in_threadpool(agent_mod.start, _client(), leaving_checklist(), CHECKABLE, body.said)
+        s, step = await run_in_threadpool(agent_mod.start, _client(), leaving_checklist(), CHECKABLE, body.said,
+                                          {"stove": "kitchen"})
     except BudgetExceeded as e:
         raise HTTPException(402, f"Budget cap reached: {e}")
     _sessions.clear()                    # one walk-through at a time
@@ -265,3 +276,48 @@ async def agent_step(session: str, frames: list[UploadFile] = File(...),
         except BudgetExceeded as e:
             raise HTTPException(402, f"Budget cap reached: {e}")
     return _agent_reply(s, step, check=result)
+
+
+# ---------------------------------------------------------------- glasses mode: is the stove in view yet?
+
+@app.post("/api/scout")
+async def scout(frame: UploadFile = File(...), x_holdpoint_passcode: str | None = Header(None)):
+    """One frame -> SAM 3.1 only (~$0.0025). Says whether all the knobs are in view and big
+    enough for a full verified check, and if not, which way to move. Never says on/off."""
+    _check_passcode(x_holdpoint_passcode)
+    if _busy.locked():
+        raise HTTPException(429, "A check is already running.")
+    async with _busy:
+        img = (await _read_images([frame]))[0]
+        stove, _ = _stove()
+        try:
+            return await run_in_threadpool(scout_frame, _client(), img, stove)
+        except BudgetExceeded as e:
+            raise HTTPException(402, f"Budget cap reached: {e}")
+
+
+def scout_frame(client, img: np.ndarray, stove: dict, segment=None) -> dict:
+    from .meta_client import prepare_frame
+    from .witness_sam import MIN_RADIUS_PX, assign_knobs, knob_circle, pick_row, segment_image
+    segment = segment or segment_image
+    frame = prepare_frame(img)
+    n = len(stove["knobs"])
+    t = time.perf_counter()
+    found = pick_row(segment(client, frame, stove["sam_prompt"], tag="scout"), n)
+    assigned = assign_knobs(found, [k["id"] for k in stove["knobs"]], frame.shape[1])
+    radii = [knob_circle(o)[2] for o in found]
+    r = float(np.median(radii)) if radii else 0.0
+    out = {"knobs_seen": len(found), "expected": n, "radius_px": round(r, 1),
+           "seconds": round(time.perf_counter() - t, 2), "ready": False}
+    if not found:
+        out["say"] = "I can't see the stove yet. Keep looking toward the stove."
+    elif len(assigned) < n or len(found) < n:
+        xs = [o.centre[0] for o in found]
+        w = frame.shape[1]
+        side = "left" if min(xs) < 0.15 * w and max(xs) < 0.85 * w else "right" if max(xs) > 0.85 * w else None
+        out["say"] = f"I can see part of the stove. Turn a little {side}." if side else "Step back a little so I can see all the knobs."
+    elif r < MIN_RADIUS_PX * 1.5:
+        out["say"] = "I can see the stove. Move closer."
+    else:
+        out["ready"], out["say"] = True, "I can see all the knobs. Checking. Hold still."
+    return out

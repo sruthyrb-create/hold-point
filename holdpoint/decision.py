@@ -21,7 +21,7 @@ class DecisionConfig:
 # When we have to pick one reason, prefer the one the user can fix most directly.
 REASON_PRIORITY = [
     ReasonCode.TOO_DARK, ReasonCode.GLARE, ReasonCode.BLUR, ReasonCode.OUT_OF_FRAME,
-    ReasonCode.OCCLUDED, ReasonCode.TOO_FAR, ReasonCode.LOW_EVIDENCE, ReasonCode.WITNESS_DISAGREE,
+    ReasonCode.OCCLUDED, ReasonCode.BAD_ANGLE, ReasonCode.TOO_FAR, ReasonCode.LOW_EVIDENCE, ReasonCode.WITNESS_DISAGREE,
 ]
 
 

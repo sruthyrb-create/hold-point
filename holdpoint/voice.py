@@ -67,6 +67,7 @@ def transcribe(client, wav_bytes: bytes, post: Callable | None = None, tag: str 
 
 # ---------------------------------------------------------------- what did the user ask?
 
+STOP = re.compile(r"\b(stop|cancel|never ?mind|be quiet)\b")
 LEAVING = re.compile(r"\b(leav(e|ing)|going out|head(ing)? out|check (the|my) (house|home|place)|lock(ing)? up)\b")
 STOVE = re.compile(r"\b(stove|burners?|knobs?|hob|cooktop|cook top)\b")
 OVEN = re.compile(r"\b(oven|display|temperature)\b")
@@ -80,6 +81,8 @@ def parse_intent(text: str) -> str | None:
     predictable, and a wrong guess here only costs a "Say: check the stove".
     """
     t = text.lower()
+    if STOP.search(t):
+        return "stop"
     if LEAVING.search(t):
         return "leaving"
     if OVEN.search(t):

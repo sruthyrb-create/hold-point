@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d10">
+<title>Hold Point</title>
+<style>
+  :root { --bg:#0b0d10; --panel:#15191f; --line:#2a313b; --text:#f4f6f8; --muted:#a8b0bb;
+          --accent:#ffd23f; --ink:#111; --clear:#3ddc84; --danger:#ff5a52; --unsure:#ffb347; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 18px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 12px 16px 32px; }
+  h1 { font-size: 1.1rem; margin: 0 0 10px; letter-spacing: .02em; }
+  h1 span { color: var(--muted); font-weight: 400; font-size: .85rem; margin-left: 8px; }
+
+  #start { min-height: 80vh; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+  #start p { color: var(--muted); margin: 0; }
+  #start input { font-size: 1.3rem; padding: 14px; border-radius: 12px; border: 1px solid var(--line);
+    background: #0f1318; color: var(--text); }
+  #wake { min-height: 120px; border: 0; border-radius: 18px; background: var(--accent); color: var(--ink);
+    font-size: 2rem; font-weight: 800; }
+  #wake:focus-visible, input:focus-visible { outline: 4px solid #fff; outline-offset: 3px; }
+
+  .view { position: relative; background: #000; border-radius: 14px; overflow: hidden; aspect-ratio: 3 / 4;
+    border: 1px solid var(--line); max-height: 52vh; width: 100%; }
+  video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .off { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 16px; }
+  .chip { position: absolute; left: 10px; top: 10px; padding: 4px 10px; border-radius: 99px; font-size: .8rem;
+    background: rgba(0,0,0,.6); border: 1px solid var(--line); }
+  .chip.rec { border-color: var(--danger); color: #fff; }
+  .chip.rec::before { content: "● "; color: var(--danger); }
+
+  #answer { min-height: 3.2em; margin: 14px 0 6px; padding: 16px 18px; border-radius: 14px; background: var(--panel);
+    border: 2px solid var(--line); font-size: 1.6rem; font-weight: 700; line-height: 1.25; }
+  #answer.clear { border-color: var(--clear); } #answer.danger { border-color: var(--danger); } #answer.unsure { border-color: var(--unsure); }
+  #heard { color: var(--muted); font-size: .95rem; min-height: 1.4em; margin: 0 2px; }
+
+  #log { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; }
+  #log h2 { font-size: .9rem; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+  #log ol { margin: 0; padding-left: 18px; font-size: .82rem; } #log li { margin: 3px 0; }
+  #log img { width: 100%; border-radius: 10px; margin: 8px 0 4px; display: none; }
+  table { width: 100%; border-collapse: collapse; font-size: .8rem; margin-top: 6px; }
+  th, td { text-align: left; padding: 4px 3px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .on { color: var(--danger); font-weight: 700; } .offst { color: var(--clear); } .na { color: var(--unsure); }
+  code { color: var(--muted); font-size: .78rem; }
+  footer { margin-top: 16px; font-size: .8rem; color: var(--muted); }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hold Point<span>the leaving-home check that won't guess</span></h1>
+
+  <section id="start">
+    <p>Enter the passcode, then tap Start. Hold Point will ask to use the camera and microphone once.
+       After that it is hands-free: just say <strong>"I'm going out, check the house."</strong></p>
+    <label for="pass" class="sr">Passcode</label>
+    <input id="pass" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off"
+           spellcheck="false" placeholder="Passcode">
+    <button id="wake" type="button">Start</button>
+    <p id="startmsg" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="live" hidden>
+    <div class="view" aria-hidden="true">
+      <video id="video" playsinline muted></video>
+      <div class="off" id="camoff">Camera off. It turns on by itself when a check needs it.</div>
+      <div class="chip" id="chip">Listening</div>
+    </div>
+    <p id="answer" role="status" aria-live="assertive" aria-atomic="true"></p>
+    <p id="heard"></p>
+    <section id="log" aria-label="What the Meta models did">
+      <h2>What the Meta models did</h2>
+      <ol id="steps"></ol>
+      <img id="overlay" alt="Last frame: each knob circled by SAM 3.1 with its measured grip-bar line">
+      <table id="knobs"></table>
+    </section>
+  </section>
+  <footer><a href="/manual">Manual mode (setup, evaluation)</a></footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const video = $("video");
+const MAX_SIDE = 1280, FRAMES = 4, GAP_MS = 250;
+let passcode = null, mic = null, cam = null, ctx = null;
+let speaking = false, mode = "idle", cancelled = false, voiceBusy = false;
+
+function store(k, v) { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function buzz(p) { if (navigator.vibrate) navigator.vibrate(p); }
+function chip(text, rec) { $("chip").textContent = text; $("chip").className = "chip" + (rec ? " rec" : ""); }
+function step(text) { const li = document.createElement("li"); li.innerHTML = text; $("steps").appendChild(li); li.scrollIntoView({ block: "nearest" }); }
+
+// ---------------------------------------------------------------- speaking
+// The answer box is an aria-live region, so a screen reader reads every answer; the phone's
+// built-in voice also speaks it (what glasses would do through their speakers).
+function say(text, kind = "") {
+  $("answer").className = kind; $("answer").textContent = text;
+  return new Promise(resolve => {
+    if (!("speechSynthesis" in window)) return resolve();
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    speaking = true;
+    const done = () => { speaking = false; setTimeout(resolve, 250); };
+    u.onend = done; u.onerror = done;
+    setTimeout(() => { if (speaking) done(); }, 1500 + text.length * 90);   // never hang on a stuck voice
+    speechSynthesis.speak(u);
+  });
+}
+
+// ---------------------------------------------------------------- start = passcode + permissions
+$("pass").value = load("hp-pass") || "";
+$("wake").onclick = async () => {
+  passcode = $("pass").value.trim();
+  if (!passcode) { $("startmsg").textContent = "Enter the passcode first."; return; }
+  $("startmsg").textContent = "Checking the passcode…";
+  try {
+    const res = await fetch("/api/status", { headers: { "X-Holdpoint-Passcode": passcode } });
+    if (res.status === 401) { $("startmsg").textContent = "Wrong passcode."; return; }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); $("startmsg").textContent = e.detail || "Hold Point isn't ready."; return; }
+  } catch (e) { $("startmsg").textContent = "Can't reach Hold Point. Check the laptop and the link."; return; }
+  store("hp-pass", passcode);
+  try {   // ask for both permissions now, while we have the tap; the camera then switches off again
+    const both = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      video: { facingMode: { ideal: "environment" } } });
+    both.getVideoTracks().forEach(t => t.stop());
+    mic = new MediaStream(both.getAudioTracks());
+  } catch (e) { $("startmsg").textContent = "Hold Point needs the camera and microphone. Allow them, then tap Start again."; return; }
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  $("start").hidden = true; $("live").hidden = false;
+  startListening();
+  say("Hold Point is ready. Say: I'm going out, check the house.");
+};
+
+// ---------------------------------------------------------------- camera
+async function camOn() {
+  if (cam && cam.getVideoTracks().some(t => t.readyState === "live")) return;
+  cam = await navigator.mediaDevices.getUserMedia({ audio: false,
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+  video.srcObject = cam; await video.play(); $("camoff").hidden = true;
+  await sleep(900);   // focus and exposure
+}
+function camOff() {
+  if (cam) cam.getTracks().forEach(t => t.stop());
+  cam = null; video.srcObject = null; $("camoff").hidden = false;
+}
+async function grab() {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) throw new Error("camera has no picture yet");
+  const s = Math.min(1, MAX_SIDE / Math.max(w, h)), c = document.createElement("canvas");
+  c.width = Math.round(w * s); c.height = Math.round(h * s);
+  c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+  const b = await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+  if (!b) throw new Error("couldn't take a frame");
+  return b;
+}
+
+// ---------------------------------------------------------------- server calls
+async function post(url, form, json) {
+  const opts = { method: "POST", headers: { "X-Holdpoint-Passcode": passcode } };
+  if (json) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(json); } else opts.body = form;
+  const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 90000); opts.signal = ctrl.signal;
+  try {
+    const res = await fetch(url, opts);
+    if (res.status === 429) return { busy: true };
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || `error ${res.status}`); }
+    return await res.json();
+  } finally { clearTimeout(timer); }
+}
+async function frames(n = FRAMES) {
+  const f = new FormData();
+  for (let i = 0; i < n; i++) { f.append("frames", await grab(), `f${i}.jpg`); if (i < n - 1) await sleep(GAP_MS); }
+  buzz(30);
+  return f;
+}
+
+// ---------------------------------------------------------------- finding the stove (cheap: SAM 3.1 only)
+async function findStove(limitMs = 90000) {
+  const t0 = Date.now(); let last = "", lastAt = 0;
+  while (!cancelled && Date.now() - t0 < limitMs) {
+    const f = new FormData(); f.append("frame", await grab(), "scout.jpg");
+    const r = await post("/api/scout", f);
+    if (r.busy) { await sleep(500); continue; }
+    chip(`Looking · SAM 3.1 sees ${r.knobs_seen}/${r.expected} knobs`, true);
+    if (r.ready) return true;
+    if (r.say !== last || Date.now() - lastAt > 7000) { last = r.say; lastAt = Date.now(); await say(r.say, "unsure"); }
+    await sleep(700);
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------- the panel
+const cls = s => s === "on" ? "on" : s === "off" ? "offst" : "na";
+function showCheck(r) {
+  if (!r) return;
+  if (r.overlay) { $("overlay").src = r.overlay; $("overlay").style.display = "block"; }
+  let k = "<tr><th>Knob</th><th>Muse Spark</th><th>SAM 3.1 + angle</th><th>Decision</th></tr>";
+  for (const it of r.items) {
+    const a = it.spark.map(x => x.state ? `<span class="${cls(x.state)}">${esc(x.state)}</span>` : `<span class="na">?</span>`).join(" ");
+    const b = it.sam.map(x => x.state ? `<span class="${cls(x.state)}">${x.turn_deg >= 0 ? "+" : ""}${x.turn_deg}°</span>` : `<span class="na">?</span>`).join(" ");
+    const v = it.verdict;
+    const d = v.answered ? `<span class="${cls(v.state)}">${esc(v.state)}</span>` : `<span class="na">can't confirm</span>${v.possibly_on ? ' <span class="on">may be ON</span>' : ""}`;
+    k += `<tr><td>${esc(it.name)}</td><td>${a}</td><td>${b}</td><td>${d}</td></tr>`;
+  }
+  $("knobs").innerHTML = k;
+  for (const c of r.calls) step(`<code>${esc(c.model)}</code> ${esc(c.job)} · ${c.seconds}s`);
+  step(`<code>decision layer (no AI)</code> → ${esc(r.answer)} · $${r.cost_usd.toFixed(3)}`);
+}
+let shownTrace = 0;
+function showTrace(trace) {
+  for (const t of trace.slice(shownTrace)) step(`<code>${esc(t.model)}</code> → ${esc(t.call)}${t.said ? `: “${esc(t.said)}”` : ""}`);
+  shownTrace = trace.length;
+}
+
+// ---------------------------------------------------------------- leaving-home walk-through (Muse Wonder plans)
+async function leaveHome(said) {
+  if (mode !== "idle") return;
+  mode = "agent"; cancelled = false; shownTrace = 0; $("steps").innerHTML = "";
+  chip("Planning · Muse Wonder");
+  try {
+    let r = await post("/api/agent/start", null, { said });
+    let wasDanger = false;
+    while (!cancelled) {
+      showTrace(r.trace || []);
+      if (r.check) showCheck(r.check);
+      if (r.action !== "check") {
+        camOff(); chip("Listening");
+        buzz(r.all_clear ? [120, 80, 120] : [300, 120, 300]);
+        await say(r.say, r.all_clear ? "clear" : "danger");
+        break;
+      }
+      await say(r.say, r.check ? (r.check.danger ? "danger" : "unsure") : "");
+      if (wasDanger) await sleep(5000);            // time to reach the knob and turn it off
+      await camOn();
+      if (!(await findStove())) {
+        if (!cancelled) await say("I couldn't find the stove. Say: check the house, to try again.", "unsure");
+        break;
+      }
+      chip("Checking · Muse Spark + SAM 3.1", true);
+      const f = await frames();
+      const next = await post(`/api/agent/step?session=${encodeURIComponent(r.session)}`, f);
+      if (next.busy) { await sleep(800); continue; }
+      wasDanger = !!(next.check && next.check.danger);
+      r = next;
+    }
+  } catch (e) {
+    await say(`Something went wrong: ${e.message}. Say: check the house, to try again.`, "unsure");
+  } finally {
+    camOff(); mode = "idle"; chip("Listening");
+  }
+}
+
+// ---------------------------------------------------------------- "are the burners off?" (one item, keeps trying)
+async function checkStove() {
+  if (mode !== "idle") return;
+  mode = "check"; cancelled = false; $("steps").innerHTML = "";
+  try {
+    await say("Checking the stove. Look at the knobs.");
+    await camOn();
+    for (let round = 0; round < 4 && !cancelled; round++) {
+      if (!(await findStove())) { if (!cancelled) await say("I couldn't find the stove.", "unsure"); break; }
+      chip("Checking · Muse Spark + SAM 3.1", true);
+      const r = await post("/api/check?item=stove", await frames());
+      if (r.busy) continue;
+      showCheck(r);
+      const kind = r.danger ? "danger" : r.all_clear ? "clear" : "unsure";
+      buzz(kind === "danger" ? [300, 120, 300] : kind === "clear" ? 120 : [80, 80, 80]);
+      await say(r.answer, kind);
+      if (kind !== "unsure") break;                // a verified answer, or a warning: stop here
+    }
+  } catch (e) {
+    await say(`Something went wrong: ${e.message}`, "unsure");
+  } finally {
+    camOff(); mode = "idle"; chip("Listening");
+  }
+}
+
+function stopAll() { cancelled = true; speechSynthesis.cancel(); camOff(); }
+
+// ---------------------------------------------------------------- always listening (voice activity -> Muse Voice Transcribe)
+const RATE = 16000;
+function toWav(chunks, inRate) {
+  let n = 0; for (const c of chunks) n += c.length;
+  const all = new Float32Array(n); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  const ratio = inRate / RATE, len = Math.floor(all.length / ratio), pcm = new Int16Array(len);
+  for (let i = 0; i < len; i++) {
+    const a = Math.floor(i * ratio), b = Math.min(all.length, Math.floor((i + 1) * ratio));
+    let sum = 0; for (let j = a; j < b; j++) sum += all[j];
+    const v = Math.max(-1, Math.min(1, sum / Math.max(1, b - a))); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+  }
+  const buf = new ArrayBuffer(44 + pcm.length * 2), d = new DataView(buf);
+  const str = (off, t) => { for (let i = 0; i < t.length; i++) d.setUint8(off + i, t.charCodeAt(i)); };
+  str(0, "RIFF"); d.setUint32(4, 36 + pcm.length * 2, true); str(8, "WAVE"); str(12, "fmt ");
+  d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true); d.setUint32(24, RATE, true);
+  d.setUint32(28, RATE * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true); str(36, "data");
+  d.setUint32(40, pcm.length * 2, true); new Int16Array(buf, 44).set(pcm);
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+function startListening() {
+  const src = ctx.createMediaStreamSource(mic), proc = ctx.createScriptProcessor(4096, 1, 1);
+  const chunkMs = 4096 / ctx.sampleRate * 1000;
+  let floor = 0.01, rec = null, pre = [], loud = 0, quiet = 0;
+  proc.onaudioprocess = e => {
+    const x = new Float32Array(e.inputBuffer.getChannelData(0));
+    if (speaking || voiceBusy) { rec = null; loud = 0; pre = []; return; }   // don't hear ourselves
+    let s = 0; for (let i = 0; i < x.length; i++) s += x[i] * x[i];
+    const rms = Math.sqrt(s / x.length), thr = Math.max(0.02, floor * 3);
+    if (!rec) {
+      floor = 0.95 * floor + 0.05 * Math.min(rms, 0.05);
+      pre.push(x); if (pre.length > 4) pre.shift();
+      loud = rms > thr ? loud + 1 : 0;
+      if (loud >= 2) { rec = [...pre]; quiet = 0; chip("Hearing you…", true); }
+    } else {
+      rec.push(x);
+      quiet = rms > thr ? 0 : quiet + 1;
+      const ms = rec.length * chunkMs;
+      if (quiet * chunkMs > 800 || ms > 6000) {
+        const clip = rec; rec = null; loud = 0; pre = [];
+        if (clip.length * chunkMs > 700) heard(toWav(clip, ctx.sampleRate));
+        else chip(mode === "idle" ? "Listening" : $("chip").textContent);
+      }
+    }
+  };
+  src.connect(proc); proc.connect(ctx.destination);
+}
+
+async function heard(wav) {
+  voiceBusy = true; chip("Understanding · Muse Voice Transcribe");
+  try {
+    const f = new FormData(); f.append("audio", wav, "command.wav");
+    const r = await post("/api/voice", f);
+    if (!r || r.busy) return;
+    if (!r.transcript) return;
+    $("heard").textContent = `Heard: “${r.transcript}” · Muse Voice Transcribe`;
+    voiceBusy = false;
+    if (r.intent === "stop") { stopAll(); await say(r.reply); return; }
+    if (mode !== "idle") return;                    // already busy with a check: only "stop" counts
+    if (r.intent === "leaving") { leaveHome(r.transcript); return; }
+    if (r.intent === "check_stove") { checkStove(); return; }
+    if (r.intent === "check_oven") { await say(r.reply, "unsure"); return; }
+    // anything else: ignore quietly (it may not have been meant for us)
+  } catch (e) {
+    $("heard").textContent = `Couldn't understand that (${e.message}).`;
+  } finally {
+    voiceBusy = false;
+    if (mode === "idle") chip("Listening");
+  }
+}
+</script>
+</body>
+</html>

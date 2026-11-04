@@ -34,14 +34,15 @@ MAX_ATTEMPTS = 3          # per item
 MAX_STEPS = 10            # Wonder turns per walk-through
 MAX_INSTRUCTION = 140     # characters
 
-SYSTEM = """You run a leaving-home check for a blind or low-vision person, using their phone camera.
+SYSTEM = """You run a leaving-home check for a blind or low-vision person, using the camera on their glasses or phone.
 You cannot see anything yourself. Each check_item call makes the app run a verified check of one item
 (two independent vision models must agree) and returns the result to you.
 
 Rules:
 - Call exactly one tool per turn. Check items one at a time, in a sensible order.
-- `instruction` is spoken to the user before the check: one short sentence (under 20 words) telling them
-  where to point the phone. Never state or guess whether anything is on or off.
+- `instruction` is spoken to the user before the check: one short sentence (under 20 words). The FIRST
+  time you check an item, tell them which room to go to (item_locations) and to look at the item; the
+  camera then finds it by itself. Never state or guess whether anything is on or off.
 - If a result is not verified and has guidance (e.g. "Move closer"), check the same item again and put
   that guidance in the instruction.
 - If a result found something ON, ask the user to turn it off, then check the same item again.
@@ -62,7 +63,7 @@ TOOLS = [
 ]
 
 DEFAULT_INSTRUCTION = {
-    "stove": "Point the phone at the stove knobs and hold still.",
+    "stove": "Go to the kitchen and look at the stove knobs.",
     "oven display": "Point the phone at the oven display and hold still.",
 }
 
@@ -222,7 +223,8 @@ def _next(client, s: Session) -> Step:
     return Step(action="check", item=item, say=instruction)
 
 
-def start(client, checklist: list[str], checkable: list[str], said: str = "") -> tuple[Session, Step]:
+def start(client, checklist: list[str], checkable: list[str], said: str = "",
+          locations: dict[str, str] | None = None) -> tuple[Session, Step]:
     s = Session(id=uuid.uuid4().hex[:12], checklist=checklist,
                 checkable=[i for i in checklist if i in checkable])
     s.messages = [
@@ -231,6 +233,7 @@ def start(client, checklist: list[str], checkable: list[str], said: str = "") ->
             "user_said": said or "I'm leaving, check the house.",
             "items_you_can_check": s.checkable,
             "items_the_user_must_check_themselves": [i for i in checklist if i not in s.checkable],
+            "item_locations": locations or {"stove": "kitchen", "oven display": "kitchen"},
             "max_attempts_per_item": MAX_ATTEMPTS})},
     ]
     if not s.checkable:

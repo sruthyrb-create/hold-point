@@ -132,3 +132,56 @@ def test_pick_row_refuses_when_extra_is_on_the_row():
     extra = obj(500, 560, 80, 140)                      # a fifth "knob" in the same row: ambiguous
     assert len(pick_row(row + [extra], 4)) == 5
     assert assign_knobs(row + [extra], ["k1", "k2", "k3", "k4"], 1280) == {}
+
+
+# ---------------------------------------------------------------- viewing-angle corrections
+
+def rotate_scene(img, objs, deg):
+    """Rotate the whole picture (phone tilted sideways) and move the knob boxes with it."""
+    h, w = img.shape[:2]
+    m = cv2.getRotationMatrix2D((w / 2, h / 2), -deg, 1.0)       # -deg: clockwise on screen
+    out = cv2.warpAffine(img, m, (w, h), borderValue=(70, 70, 70))
+    moved = []
+    for o in objs:
+        x0, y0, x1, y1 = o.box
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        nx, ny = m @ np.array([cx, cy, 1.0])
+        r = (x1 - x0) / 2
+        moved.append(SamObject(o.frame, o.object_id, (int(nx - r), int(ny - r), int(nx + r), int(ny + r)), None))
+    return out, moved
+
+
+def test_roll_correction_keeps_untouched_knobs_off():
+    from holdpoint.witness_sam import row_angle
+    ref_img, ref_objs = frame_with([0, 0, 0, 0])
+    refs = {f"knob_{i + 1}": d for i, (d, _) in enumerate(measure_knobs(ref_img, ref_objs))}
+    setup_row = row_angle(ref_objs)
+    img, objs = frame_with([0, 0, 85, 0])
+    tilted, moved = rotate_scene(img, objs, 15)                    # phone held 15 deg crooked
+    raw = {x.item_id: x for x in read_knobs(tilted, 0, moved, refs).items}
+    fixed = {x.item_id: x for x in read_knobs(tilted, 0, moved, refs, setup_row).items}
+    assert raw["knob_1"].state != "off"                            # without correction: wrong
+    assert [fixed[f"knob_{i}"].state for i in (1, 2, 4)] == ["off"] * 3
+    assert fixed["knob_3"].state == "on"
+
+
+def test_tilt_correction_from_oval_mask():
+    from holdpoint.witness_sam import tilt_correct
+    for true in (0, 30, 60, 120):
+        img = np.full((300, 300, 3), 70, np.uint8)
+        box = draw_knob(img, 150, 150, 50, true)
+        squash = 0.7                                               # seen from the side: x squashed
+        m = np.float32([[squash, 0, 150 * (1 - squash)], [0, 1, 0]])
+        side = cv2.warpAffine(img, m, (300, 300), borderValue=(70, 70, 70))
+        x0, y0, x1, y1 = int(150 - 50 * squash), 100, int(150 + 50 * squash), 200
+        yy, xx = np.mgrid[y0:y1, x0:x1]
+        mask = (((xx - 150) / (50 * squash)) ** 2 + ((yy - 150) / 50) ** 2) <= 1
+        obj = SamObject(0, "k", (x0, y0, x1, y1), mask)
+        gray = cv2.cvtColor(side, cv2.COLOR_BGR2GRAY)
+        seen, _ = bar_direction(gray, 150, 150, 50 * squash)
+        fixed, ratio = tilt_correct(seen, obj)
+        err = lambda a: abs((a - true + 90) % 180 - 90)
+        assert ratio > 1.3
+        assert err(fixed) <= 4, (true, seen, fixed)
+        if true in (30, 60, 120):
+            assert err(seen) > err(fixed)                          # the correction actually helped

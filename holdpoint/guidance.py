@@ -10,6 +10,7 @@ FIXED_ACTION = {
     ReasonCode.TOO_DARK: "Turn on a light.",
     ReasonCode.BLUR: "Hold still.",
     ReasonCode.TOO_FAR: "Move closer.",
+    ReasonCode.BAD_ANGLE: "Face the stove.",
     ReasonCode.GLARE: "Tilt the phone slightly.",
     ReasonCode.WITNESS_DISAGREE: "Hold still, checking again.",
     ReasonCode.LOW_EVIDENCE: "Hold still, checking again.",

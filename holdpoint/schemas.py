@@ -17,6 +17,7 @@ class ReasonCode(str, Enum):
     GLARE = "GLARE"
     WITNESS_DISAGREE = "WITNESS_DISAGREE"
     LOW_EVIDENCE = "LOW_EVIDENCE"
+    BAD_ANGLE = "BAD_ANGLE"       # looking at the controls from too steep a side angle
 
 
 class ItemReading(BaseModel):

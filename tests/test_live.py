@@ -213,3 +213,21 @@ def test_consensus_off_window_is_wider_but_on_threshold_unchanged():
     assert states(geometry_consensus(geo_frames([16, 15, 17, 16]), ["k"])) == ["on"] * 4
     one = geo_frames([7.5])[0].items[0]                                                          # a single frame keeps +/-6
     assert one.state is None
+
+
+def test_scout_says_where_to_move(tmp_path):
+    from holdpoint.server import scout_frame
+    client, frames, stove, refs, seg = setup(tmp_path, [0, 0, 0, 0], ["off"] * 4)
+    img, objs = frame_with([0, 0, 0, 0])
+    r = scout_frame(client, img, stove, segment=lambda c, f, p, tag="": objs)
+    assert r["ready"] and r["knobs_seen"] == 4
+    r = scout_frame(client, img, stove, segment=lambda c, f, p, tag="": [])
+    assert not r["ready"] and "can't see the stove" in r["say"]
+    r = scout_frame(client, img, stove, segment=lambda c, f, p, tag="": objs[:2])
+    assert not r["ready"]
+
+
+def test_stop_intent():
+    from holdpoint.voice import parse_intent
+    assert parse_intent("stop") == "stop" and parse_intent("cancel that") == "stop"
+    assert parse_intent("I'm going out, check the house") == "leaving"

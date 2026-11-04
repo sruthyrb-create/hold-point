@@ -20,7 +20,7 @@ import numpy as np
 from .check import _unwrap
 from .meta_client import MetaClient, prepare_frame
 from .profile import HOME_DIR, knob_entries
-from .witness_sam import knob_circle, measure_knobs, pick_row, segment_image
+from .witness_sam import knob_circle, measure_knobs, pick_row, row_angle, segment_image
 
 MAX_SPREAD_DEG = 10.0  # a handheld frame wobbles about +/-4 deg (31 Oct); the MIDDLE of 6 frames is saved
 
@@ -40,6 +40,7 @@ def setup_from_frames(client: MetaClient, frames: list[np.ndarray], n_knobs: int
     boxes: list[tuple] = [None] * n_knobs
     good_frames = 0
     best = None
+    rows: list[float] = []
     for i, frame in enumerate(frames):
         cv2.imwrite(str(attempt / f"frame{i + 1}.jpg"), frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
         raw = [replace(o, frame=i) for o in segment(client, frame, prompt, tag="setup")]
@@ -55,6 +56,7 @@ def setup_from_frames(client: MetaClient, frames: list[np.ndarray], n_knobs: int
                          f"(strength {', '.join(f'{p:.1f}' for _, p in dirs)})")
             continue
         good_frames += 1
+        rows.append(row_angle(found))
         best = best or (frame, found, [d for d, _ in dirs])
         for k, ((d, _), obj) in enumerate(zip(dirs, found)):
             per_knob[k].append(d)
@@ -88,7 +90,9 @@ def setup_from_frames(client: MetaClient, frames: list[np.ndarray], n_knobs: int
     for entry, d, box in zip(knobs, off_dirs, boxes):
         entry["off_direction"] = d
         entry["setup_box"] = list(box)
-    profile["stove"] = {"sam_prompt": prompt, "knobs": knobs}
+    profile["stove"] = {"sam_prompt": prompt, "knobs": knobs,
+                        "row_angle": (round(float(np.median([r for r in rows if r is not None])), 2)
+                                      if any(r is not None for r in rows) else None)}
     home.mkdir(parents=True, exist_ok=True)
     profile_path.write_text(json.dumps(profile, indent=2))
 

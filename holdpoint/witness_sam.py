@@ -28,6 +28,7 @@ SAM output is decoded with Meta's official parser, meta-sam-parser.
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
 
 import cv2
@@ -154,6 +155,54 @@ def bar_direction(gray: np.ndarray, cx: float, cy: float, r: float) -> tuple[flo
     return ((i + 0.5 + offset) * 180.0 / BINS) % 180.0, peak
 
 
+# ---------------------------------------------------------------- viewing-angle corrections
+# The OFF reference is captured once, from one viewpoint. Two things change the bar's
+# apparent direction when the user looks from somewhere else, and both can be undone:
+#   roll  - the phone/glasses tilted sideways: the whole knob row rotates in the picture.
+#           Measured from the line through the knob centres, compared with setup.
+#   tilt  - looking at the panel from the side/above: each round knob looks oval. The
+#           oval's shape (from SAM's mask) says how to "un-squash" it back to a circle.
+# Very steep views (oval more than MAX_TILT_RATIO long) are refused rather than guessed.
+
+TILT_MIN_RATIO = 1.10     # below this the knob is near enough to round: no correction
+MAX_TILT_RATIO = 2.2      # beyond this the view is too steep to trust
+
+
+def tilt_ratio_axis(obj: SamObject) -> tuple[float, np.ndarray | None]:
+    """How oval the knob looks (major/minor axis ratio) and the minor axis direction, from its mask."""
+    if obj.mask is None or obj.mask.sum() < 30:
+        return 1.0, None
+    ys, xs = np.nonzero(obj.mask)
+    cov = np.cov(np.vstack([xs, ys]).astype(np.float64))
+    vals, vecs = np.linalg.eigh(cov)            # ascending: [minor, major]
+    if vals[0] <= 0:
+        return 1.0, None
+    return float(np.sqrt(vals[1] / vals[0])), vecs[:, 0]
+
+
+def tilt_correct(direction: float, obj: SamObject) -> tuple[float, float]:
+    """Bar direction as it would look face-on. Returns (direction, oval ratio).
+    Set HOLDPOINT_TILT=0 to switch the correction off (the steep-angle refusal stays)."""
+    ratio, minor = tilt_ratio_axis(obj)
+    if minor is None or ratio < TILT_MIN_RATIO or os.environ.get("HOLDPOINT_TILT", "1") == "0":
+        return direction, ratio
+    t = math.radians(direction)
+    d = np.array([math.sin(t), -math.cos(t)])   # direction vector (x right, y down)
+    d = d + (ratio - 1.0) * float(d @ minor) * minor   # stretch the squashed axis back
+    return math.degrees(math.atan2(d[0], -d[1])) % 180.0, ratio
+
+
+def row_angle(objs: list[SamObject]) -> float | None:
+    """Angle (deg) of the line through the leftmost and rightmost knob centres."""
+    if len(objs) < 2:
+        return None
+    objs = sorted(objs, key=lambda o: o.centre[0])
+    (x0, y0), (x1, y1) = objs[0].centre, objs[-1].centre
+    if x1 - x0 < 1:
+        return None
+    return math.degrees(math.atan2(y1 - y0, x1 - x0))
+
+
 # ---------------------------------------------------------------- identity + reading
 
 def pick_row(found: list[SamObject], n: int) -> list[SamObject]:
@@ -207,17 +256,24 @@ def assign_knobs(found: list[SamObject], expected_ids: list[str], image_width: i
 
 
 def measure_knobs(frame_bgr: np.ndarray, found: list[SamObject]) -> list[tuple[float | None, float]]:
-    """Bar direction and peak strength for each found knob (used at setup)."""
+    """Bar direction (face-on, tilt-corrected) and peak strength for each found knob (used at setup)."""
     gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-    return [bar_direction(gray, *knob_circle(o)) for o in found]
+    out = []
+    for o in found:
+        d, peak = bar_direction(gray, *knob_circle(o))
+        out.append((tilt_correct(d, o)[0] if d is not None else None, peak))
+    return out
 
 
 def read_knobs(frame_bgr: np.ndarray, frame_index: int, found: list[SamObject],
-               references: dict[str, float]) -> FrameReadings:
-    """references: item_id -> the knob's bar direction at OFF (from setup), left to right."""
+               references: dict[str, float], setup_row_angle: float | None = None) -> FrameReadings:
+    """references: item_id -> the knob's bar direction at OFF (from setup), left to right.
+    setup_row_angle: the knob row's angle at setup; if given, sideways phone tilt is undone."""
     ids = list(references)
     gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
     assigned = assign_knobs([o for o in found if o.frame == frame_index], ids, frame_bgr.shape[1])
+    now_row = row_angle(list(assigned.values()))
+    roll = (now_row - setup_row_angle) if (now_row is not None and setup_row_angle is not None) else 0.0
 
     readings = []
     for iid in ids:
@@ -234,6 +290,11 @@ def read_knobs(frame_bgr: np.ndarray, frame_index: int, found: list[SamObject],
             reason = ReasonCode.OUT_OF_FRAME if peak == 0.0 else ReasonCode.LOW_EVIDENCE
             readings.append(ItemReading(item_id=iid, visible=False, reason_code=reason))
             continue
+        direction, ratio = tilt_correct(direction, obj)
+        if ratio > MAX_TILT_RATIO:            # looking from too steep an angle to trust
+            readings.append(ItemReading(item_id=iid, visible=False, reason_code=ReasonCode.BAD_ANGLE))
+            continue
+        direction = (direction - roll) % 180.0
         reading = state_from_angle(iid, direction, references[iid], period=180.0)
         # report the turn relative to OFF, not the raw direction
         turn = (direction - references[iid] + 90.0) % 180.0 - 90.0

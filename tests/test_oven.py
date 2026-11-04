@@ -114,4 +114,4 @@ def test_server_oven_endpoint_and_agent(tmp_path, monkeypatch):
     r = http.post("/api/check?item=oven&truth=oven_off", files=files, headers=h)
     assert r.status_code == 200 and r.json()["all_clear"], r.text
     assert http.post("/api/check?item=toaster", files=files, headers=h).status_code == 400
-    assert "oven display" in server.CHECKABLE
+    assert "oven display" not in server.CHECKABLE          # experimental: not in the walk-through
