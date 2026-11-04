@@ -37,6 +37,8 @@
   #go:disabled, #talk:disabled { opacity: .55; }
   #talk.rec { background: var(--danger); border-color: var(--danger); color: #fff; }
   #heard { color: var(--muted); font-size: 1rem; margin: 8px 2px 0; min-height: 1.4em; }
+  #oven { width: 100%; min-height: 64px; margin-top: 10px; border: 1px solid var(--line); border-radius: 14px;
+    background: var(--panel); color: var(--text); font-size: 1.15rem; font-weight: 700; cursor: pointer; }
   #leave { width: 100%; min-height: 64px; margin-top: 10px; border: 1px solid var(--line); border-radius: 14px;
     background: var(--panel); color: var(--text); font-size: 1.15rem; font-weight: 700; cursor: pointer; }
   #agentlog li { margin: 4px 0; font-size: .85rem; } #agentlog { padding-left: 18px; margin: 6px 0 10px; }
@@ -83,6 +85,7 @@
   <button id="talk" type="button" aria-describedby="heard">Speak</button>
   <p id="heard"></p>
   <button id="go" type="button">Check the stove</button>
+  <button id="oven" type="button">Check the oven</button>
   <button id="leave" type="button">I'm leaving: check the house</button>
 
   <label class="row"><input id="speak" type="checkbox"> Read answers aloud with the phone's voice</label>
@@ -110,6 +113,7 @@
         <option value="on:knob_3">Knob 3 ON</option><option value="on:knob_4">Knob 4 ON</option>
         <option value="slight:knob_1">Knob 1 turned slightly</option><option value="slight:knob_2">Knob 2 turned slightly</option>
         <option value="slight:knob_3">Knob 3 turned slightly</option><option value="slight:knob_4">Knob 4 turned slightly</option>
+        <option value="oven_off">Oven OFF (use Check the oven)</option><option value="oven_on">Oven ON (use Check the oven)</option>
       </select></label>
     <p class="meta" id="evalcount"></p>
   </details>
@@ -257,13 +261,14 @@ async function setupStove() {
   }
 }
 
-async function check(opening = "Checking. Hold still.") {
+async function check(opening = "Checking. Hold still.", item = "stove") {
   if (!passcode) { $("passbox").hidden = false; say("Enter the passcode first."); return; }
   busy = true; go.disabled = true; go.textContent = "Checking…";
   say(opening);
   try {
     const truth = $("truth").value;   // evaluation label (what the stove really is); not used to decide
-    const r = await send("/api/check" + (truth ? `?truth=${encodeURIComponent(truth)}` : ""), await captureForm());
+    const q = new URLSearchParams({ item }); if (truth) q.set("truth", truth);
+    const r = await send(`/api/check?${q}`, await captureForm());
     if (!r) return;
     const kind = r.danger ? "danger" : r.all_clear ? "clear" : "unsure";
     say(r.answer, kind);
@@ -289,10 +294,11 @@ function showPanel(r) {
   const img = $("overlay");
   if (r.overlay) { img.src = r.overlay; img.style.display = "block"; } else img.style.display = "none";
 
-  let k = "<tr><th>Knob</th><th>A · Muse Spark (per frame)</th><th>B · SAM 3.1 + geometry (turn from OFF)</th><th>Decision</th></tr>";
+  let k = "<tr><th>Knob</th><th>A · Muse Spark (per frame)</th><th>B · measured, no AI (knobs: SAM 3.1 + angle from OFF; oven: LED shape)</th><th>Decision</th></tr>";
   for (const it of r.items) {
     const a = it.spark.map(x => x.state ? `<span class="${cls(x.state)}">${esc(x.state)} ${x.confidence.toFixed(2)}</span>` : `<span class="na">${esc(x.reason)}</span>`).join(" · ") || '<span class="na">none</span>';
-    const b = it.sam.map(x => x.state ? `<span class="${cls(x.state)}">${esc(x.state)} ${x.turn_deg >= 0 ? "+" : ""}${x.turn_deg}°</span>`
+    const b = it.sam.map(x => x.state ? `<span class="${cls(x.state)}">${esc(x.state)} ${x.turn_deg == null
+        ? `(${x.digits} digits${x.colon ? ", colon" : ""})` : `${x.turn_deg >= 0 ? "+" : ""}${x.turn_deg}°`}</span>`
       : `<span class="na">${esc(x.reason)}${x.turn_deg != null ? ` ${x.turn_deg}°` : ""}</span>`).join(" · ")
       + (it.sam_middle_deg != null ? `<br><small>middle: ${it.sam_middle_deg >= 0 ? "+" : ""}${it.sam_middle_deg}°</small>` : "");
     const v = it.verdict;
@@ -375,6 +381,7 @@ async function agentStep() {
 }
 
 $("leave").onclick = () => { if (!busy) agentStart(); };
+$("oven").onclick = () => { if (!busy && !agent) check("Checking the oven. Point at the display and hold still.", "oven"); };
 
 // ---------------------------------------------------------------- voice
 // Tap Speak, say the command, tap again (stops by itself after 6 s). The audio is
@@ -431,6 +438,7 @@ async function stopTalk() {
     if (!r) return;
     $("heard").textContent = r.transcript ? `Heard: “${r.transcript}” · Muse Voice Transcribe, ${r.seconds}s` : "";
     if (r.action === "check") { talk.disabled = false; await check(r.reply); return; }
+    if (r.action === "check_oven") { talk.disabled = false; await check(r.reply, "oven"); return; }
     if (r.action === "agent") { talk.disabled = false; await agentStart(r.transcript); return; }
     say(r.reply, r.intent ? "" : "unsure");
   } catch (e) {

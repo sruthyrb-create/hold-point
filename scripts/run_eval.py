@@ -59,7 +59,7 @@ def main():
         f = d / "result.json"
         if f.exists():
             r = json.loads(f.read_text())
-            if r.get("truth"):
+            if r.get("truth") and not r["truth"].startswith("oven"):   # stove checks only
                 cases.append((d, r))
     if a.limit:
         cases = cases[: a.limit]

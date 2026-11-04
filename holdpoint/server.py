@@ -29,6 +29,7 @@ from fastapi.responses import FileResponse
 
 from .budget import BudgetExceeded
 from .check import run_stove_check
+from .oven import run_oven_check
 from .decision import DecisionConfig
 from .profile import HOME_DIR, load_stove
 from .setup_live import SetupFailed, setup_from_frames
@@ -116,26 +117,32 @@ def status(x_holdpoint_passcode: str | None = Header(None)):
             "cap_usd": ledger.cap}
 
 
-TRUTH = re.compile(r"^(all_off|(on|slight):knob_[1-6])$")
+TRUTH = re.compile(r"^(all_off|(on|slight):knob_[1-6]|oven_off|oven_on)$")
+ITEMS = {"stove", "oven"}
 
 
 @app.post("/api/check")
-async def check(frames: list[UploadFile] = File(...), truth: str | None = None,
+async def check(frames: list[UploadFile] = File(...), truth: str | None = None, item: str = "stove",
                 x_holdpoint_passcode: str | None = Header(None)):
     """truth (evaluation only): what the stove REALLY is, e.g. "all_off", "on:knob_3",
     "slight:knob_1". Saved with the check's frames; never used to decide the answer."""
     _check_passcode(x_holdpoint_passcode)
     if truth is not None and not TRUTH.match(truth):
-        raise HTTPException(400, "truth must be all_off, on:knob_N or slight:knob_N")
+        raise HTTPException(400, "truth must be all_off, on:knob_N, slight:knob_N, oven_off or oven_on")
+    if item not in ITEMS:
+        raise HTTPException(400, "item must be stove or oven")
     if _busy.locked():
         raise HTTPException(429, "A check is already running.")
     async with _busy:
         images = await _read_images(frames)
-        stove, refs = _stove()
         cfg = CFG if len(images) >= CFG.min_visible_frames else DecisionConfig(min_visible_frames=len(images))
         t = time.perf_counter()
         try:
-            result = await run_in_threadpool(run_stove_check, _client(), images, stove, refs, cfg)
+            if item == "oven":
+                result = await run_in_threadpool(run_oven_check, _client(), images, cfg)
+            else:
+                stove, refs = _stove()
+                result = await run_in_threadpool(run_stove_check, _client(), images, stove, refs, cfg)
         except BudgetExceeded as e:
             raise HTTPException(402, f"Budget cap reached: {e}")
         result["record"] = log_check(result)
@@ -148,7 +155,7 @@ async def check(frames: list[UploadFile] = File(...), truth: str | None = None,
 INTENT_REPLY = {
     "check_stove": ("check", "Checking the stove. Hold still."),
     "leaving": ("agent", "Okay. Let's check the house."),
-    "check_oven": (None, "Oven display check isn't ready yet. Say: check the stove."),
+    "check_oven": ("check_oven", "Checking the oven. Point the phone at the oven display and hold still."),
     None: (None, HELP),
 }
 
@@ -194,7 +201,7 @@ async def setup(frames: list[UploadFile] = File(...), knobs: int = 4,
 
 # ---------------------------------------------------------------- leaving-home agent
 
-CHECKABLE = {"stove"}                    # items with a verified check today
+CHECKABLE = {"stove", "oven display"}    # items with a verified check today
 DEFAULT_CHECKLIST = ["stove", "oven display"]
 _sessions: dict[str, agent_mod.Session] = {}
 
@@ -249,6 +256,8 @@ async def agent_step(session: str, frames: list[UploadFile] = File(...),
             if s.pending == "stove":
                 stove, refs = _stove()
                 result = await run_in_threadpool(run_stove_check, _client(), images, stove, refs, CFG)
+            elif s.pending == "oven display":
+                result = await run_in_threadpool(run_oven_check, _client(), images, CFG)
             else:                        # cannot happen: only CHECKABLE items are ever pending
                 raise HTTPException(500, f"No check for {s.pending}.")
             save_frames(images, result)
