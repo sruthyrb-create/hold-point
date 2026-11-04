@@ -42,6 +42,17 @@ MAX_FRAMES = 6
 CFG = DecisionConfig(min_visible_frames=3)
 
 app = FastAPI(title="Hold Point")
+
+# Last Seen ("where did I leave it?") runs inside the same server: page at /lastseen/,
+# same passcode, same spend cap, data in home/lastseen/.
+from lastseen import server as lastseen_server   # noqa: E402
+from fastapi.responses import RedirectResponse   # noqa: E402
+app.mount("/lastseen", lastseen_server.app)
+
+
+@app.get("/lastseen", include_in_schema=False)
+def _lastseen_slash():
+    return RedirectResponse("/lastseen/")
 _busy = asyncio.Lock()
 _state: dict = {}
 
@@ -180,6 +191,14 @@ async def voice(audio: UploadFile = File(...), x_holdpoint_passcode: str | None 
         raise HTTPException(422, str(e))
     except BudgetExceeded as e:
         raise HTTPException(402, f"Budget cap reached: {e}")
+    ls = lastseen_question(heard["transcript"]) if heard["transcript"] else None
+    if ls is not None:                         # "where are my keys?" / "guide me to my keys" (Last Seen)
+        intent, item = ls
+        out = {"transcript": heard["transcript"], "intent": intent, "item": item,
+               "audio_seconds": heard["seconds"], "seconds": round(time.perf_counter() - t, 2)}
+        if intent == "where":
+            return {**out, "action": "where", **lastseen_where(item)}
+        return {**out, "action": "guide", "reply": "Okay. Let's find them." if item.endswith("s") else "Okay. Let's find it."}
     intent = parse_intent(heard["transcript"]) if heard["transcript"] else None
     action, reply = INTENT_REPLY[intent]
     if not heard["transcript"]:
@@ -213,6 +232,56 @@ async def setup(frames: list[UploadFile] = File(...), knobs: int = 4,
 # could not read 16-pixel digits, so it is not part of the walk-through yet.
 CHECKABLE = {"stove"}                    # items with a verified check today
 DEFAULT_CHECKLIST = ["stove"]
+
+
+def leaving_reminder(find: dict | None = None) -> list[str]:
+    """Names of the user's Last Seen items, for "Don't forget your keys, glasses and wallet."
+    (items already being found in the walk-through are left out)."""
+    from lastseen.home import Home as LSHome
+    return [i.name for i in LSHome.load().items if i.id not in (find or {})]
+
+
+def lastseen_question(text: str) -> tuple[str, str | None] | None:
+    """ "where are my keys?" / "guide me to my wallet" -> ("where" | "guide", item id).
+    Checked BEFORE Hold Point's own commands, so "where did I leave my keys" is not "I'm leaving"."""
+    from lastseen.home import Home as LSHome
+    from lastseen.voice import parse_intent as ls_intent
+    home = LSHome.load()
+    if not home.items:
+        return None
+    intent, item = ls_intent(text, home.item_names())
+    if intent in ("where", "guide") and item is not None:
+        return intent, item
+    return None
+
+
+def lastseen_where(item: str) -> dict:
+    from lastseen.answer import answer_where
+    from lastseen.home import Home as LSHome
+    from lastseen.memory import MemoryStore
+    home = LSHome.load()
+    a = answer_where(item, MemoryStore().for_item(item), home)
+    text = a["text"]
+    if a["status"] != "never_seen":
+        text += f" Say: guide me to my {home.item(item).name}."
+    return {"reply": text, "status": a["status"]}
+
+
+def leaving_find(environ=os.environ) -> dict[str, str]:
+    """Belongings to find at the end of the leaving-home check (optional).
+
+    Switched on by HOLDPOINT_LEAVING_FIND, e.g. "keys" or "keys,glasses" (Last Seen
+    item ids). Only items enrolled in Last Seen count. Returns {item: where it was
+    last seen, as a spoken sentence}. Unset or empty -> {} and the check is unchanged."""
+    wanted = [w.strip().lower() for w in environ.get("HOLDPOINT_LEAVING_FIND", "").split(",") if w.strip()]
+    if not wanted:
+        return {}
+    from lastseen.find_check import last_known
+    from lastseen.home import Home as LSHome
+    from lastseen.memory import MemoryStore
+    home, store = LSHome.load(), MemoryStore()
+    enrolled = {i.id for i in home.items}
+    return {w: last_known(w, home, store)[1] for w in wanted if w in enrolled}
 _sessions: dict[str, agent_mod.Session] = {}
 
 
@@ -231,6 +300,7 @@ class AgentStart(BaseModel):
 
 def _agent_reply(s: agent_mod.Session, step: agent_mod.Step, check: dict | None = None) -> dict:
     out = {"session": s.id, "action": step.action, "item": step.item, "say": step.say,
+           "kind": "find" if step.item in s.find_where else "check",
            "planner": s.planner, "trace": s.trace, "check": check}
     if step.action == "done":
         _sessions.pop(s.id, None)
@@ -242,9 +312,10 @@ def _agent_reply(s: agent_mod.Session, step: agent_mod.Step, check: dict | None 
 @app.post("/api/agent/start")
 async def agent_start(body: AgentStart, x_holdpoint_passcode: str | None = Header(None)):
     _check_passcode(x_holdpoint_passcode)
+    find = leaving_find()
     try:
         s, step = await run_in_threadpool(agent_mod.start, _client(), leaving_checklist(), CHECKABLE, body.said,
-                                          {"stove": "kitchen"})
+                                          {"stove": "kitchen"}, find, leaving_reminder(find))
     except BudgetExceeded as e:
         raise HTTPException(402, f"Budget cap reached: {e}")
     _sessions.clear()                    # one walk-through at a time
@@ -269,9 +340,13 @@ async def agent_step(session: str, frames: list[UploadFile] = File(...),
                 result = await run_in_threadpool(run_stove_check, _client(), images, stove, refs, CFG)
             elif s.pending == "oven display":
                 result = await run_in_threadpool(run_oven_check, _client(), images, CFG)
+            elif s.pending in s.find_where:  # a belonging: Last Seen's verified find
+                from lastseen.find_check import run_find_check
+                result = await run_in_threadpool(run_find_check, _client(), images, s.pending)
             else:                        # cannot happen: only CHECKABLE items are ever pending
                 raise HTTPException(500, f"No check for {s.pending}.")
-            save_frames(images, result)
+            if result.get("kind") != "find":   # home/live/ is Hold Point's evaluation data: appliance checks only
+                save_frames(images, result)
             step = await run_in_threadpool(agent_mod.submit, _client(), s, result)
         except BudgetExceeded as e:
             raise HTTPException(402, f"Budget cap reached: {e}")

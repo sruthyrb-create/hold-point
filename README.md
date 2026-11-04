@@ -34,7 +34,8 @@ Vision assistants describe what they see. Hold Point is built to **know what it 
 4. **Short, action-first answers.** "Three off. Can't confirm back-left. Move the phone left." Danger first, never a scene description.
 5. **An agent that finishes the job.** It plans the checklist from your home profile, guides you item by item, rechecks anything it abstained on, and ends with one sentence.
 6. **A record you can come back to.** "Checked 9:02 PM: all off, back door locked." That answers the *"did I leave it on?"* worry after you've left.
-7. **Measured honesty.** On a labelled test set built by injecting defects into real footage, we report how often Hold Point is **confidently wrong** compared with a plain AI asked the same question.
+7. **"Where are my keys?"** Once the house is verified, Hold Point closes with "You're all set. Don't forget your keys, glasses and wallet." Ask "where are my keys?" and it answers from what it has seen: an exact place when a known landmark was in view ("on the computer table, in the study, 5 minutes ago"); otherwise what it saw, clearly marked as unconfirmed ("on what looked like a brown wooden desk"). "Guide me to my keys" walks you there and says "found" only when both witnesses agree on a live view. It never invents a place (Last Seen, below).
+8. **Measured honesty.** On a labelled test set built by injecting defects into real footage, we report how often Hold Point is **confidently wrong** compared with a plain AI asked the same question.
 
 > **Headline result:** *a plain AI was confidently wrong __% of the time; Hold Point __%, abstaining __% of the time with a specific fix.* (filled in after evaluation)
 
@@ -50,6 +51,22 @@ The leaving-home check is the first application of a general capability: **visua
 - **Peace of mind for families:** with the user's consent, a verified check record shared with a family member, rather than a phone call asking "did you turn it off?"
 - **Closing checklists for small businesses:** fryers, coffee machines and back doors at the end of a shift.
 - **A safety layer for other AI agents.** Any assistant that acts on what a camera sees, on smart glasses or in a robot, needs to know when it can't see. Hold Point's abstention layer is a standalone component designed to be reused.
+
+### Built during the event: Last Seen ("where did I leave it?")
+
+The first use beyond appliances is already working, in `lastseen/`. With watching on, every few seconds:
+
+- **SAM 3.1** looks for each enrolled item (keys, glasses) by name.
+- **Muse Spark** checks it against the enrolment photos ("is this *your* glasses?") and names the nearest landmark from the user's own list. It can't invent a place.
+- **SAM 3.1** then finds that landmark, and plain geometry on its outline checks Spark's "left of the stove".
+
+A place is "confirmed" only when both agree. Otherwise answers say so: *"Not sure of the exact place. I saw your glasses 2 minutes ago on what looked like a wooden table, but no landmark I know was in view. Before that, they were left of the stove."* When two similar items are in view, it refuses rather than picks.
+
+"Guide me to it" uses **Muse Wonder** to plan the search from those memories. As in the leaving-home agent, Wonder can't say "found"; only a verified view can.
+
+Memories (a small crop, never full frames) are deleted after 24 hours, and a red WATCHING bar shows whenever frames are being sent.
+
+Page: `/lastseen/` on the same server and passcode, for setup (items, landmarks) and watching. "Where are my keys?" and "guide me to my keys" also work hands-free on the main page. (Optional: `export HOLDPOINT_LEAVING_FIND=keys` makes finding the keys a step inside the walk-through instead.)
 
 The capture layer targets 720p at 30 fps, matching what Ray-Ban Meta glasses stream, so the same engine can move to glasses with no change to the logic.
 
@@ -67,9 +84,9 @@ camera frames ──────────┼─► Witness B: SAM 3.1 trackin
 
 | Meta model | Role |
 |---|---|
-| Muse Spark 1.3 | Witness A: per-frame structured readings of each knob, display and indicator |
-| SAM 3.1 | Witness B: locates each knob (and later, displays) and tracks them across frames; geometry then measures each knob |
-| Muse Wonder | Leaving-home agent: plans the checklist, sequences checks, writes the final summary |
+| Muse Spark 1.3 | Witness A: per-frame structured readings of each knob, display and indicator; Last Seen: confirms an object is the user's own item and names the nearest landmark |
+| SAM 3.1 | Witness B: locates each knob (and later, displays) and tracks them across frames; geometry then measures each knob. Last Seen: finds items and landmarks by name |
+| Muse Wonder | Leaving-home agent: plans and sequences the checks; Last Seen: plans the search for a lost item. Never states a result; final sentences are built by code |
 | Muse Voice Transcribe | Voice input |
 | Muse Glimmer (open weights) | Local mode: the vision witness running on self-hosted hardware, so home video never leaves your control |
 
@@ -115,6 +132,14 @@ python scripts/setup_stove.py all_off.jpg --knobs 4   # once: photo with every k
 python scripts/check_photo.py now.jpg                 # any time: ~1 cent per check
 ```
 
+### Last Seen (keys, glasses)
+
+```bash
+python scripts/lastseen_smoke.py PHOTO_FOLDER --item glasses --phrase eyeglasses --landmark stove --room kitchen  # first test from photos, cap $0.50
+uvicorn holdpoint.server:app --port 8000      # then open /lastseen/ on the phone: Setup, Start watching, Ask
+# on the main page, after the leaving-home check: "where are my keys?" / "guide me to my keys"
+```
+
 ### Build the test set
 
 ```bash
@@ -131,6 +156,7 @@ See the docstring in `eval/inject_defects.py` for the ground-truth format.
 - **Not a safety-certified device.** It assists, and does not replace, the user's own checks or a smoke alarm.
 - **It abstains more in poor conditions.** In bad lighting or with a shaky camera it will say what it can't see rather than guess. That is the design, but it means more prompts to adjust the camera.
 - **Bar-shaped knobs look the same at OFF and half a turn.** Geometry can't tell those two apart; Hold Point only says OFF when Muse Spark independently agrees.
+- **Last Seen only remembers what passes in front of the camera.** Watching stops when the phone locks. Thin or see-through items (glasses) are harder to see from far away, and places are relations in the camera view ("left of the stove"), not a map.
 - **It verifies what it's set up to check.** Items need to be added to the home profile once, ideally with a sighted helper.
 
 ## Credits

@@ -288,6 +288,11 @@ const cls = s => s === "on" ? "on" : s === "off" ? "off" : "na";
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function showPanel(r) {
+  if (r.kind === "find") {      // Last Seen find step: model calls only, no knob table
+    $("summary").textContent = `${r.seconds}s · $${r.cost_usd.toFixed(4)} · ${r.calls.map(c => `${c.model}: ${c.job}`).join("; ")}`;
+    $("overlay").style.display = "none";
+    return;
+  }
   $("summary").textContent = `${r.frames} frames · ${r.seconds}s · $${r.cost_usd.toFixed(4)}` +
     (Object.keys(r.quality).length ? ` · frame problems: ${Object.entries(r.quality).map(([f, q]) => `${f}: ${q.join(", ")}`).join("; ")}` : "") +
     (r.errors.length ? ` · errors: ${r.errors.join("; ")}` : "");

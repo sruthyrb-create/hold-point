@@ -10,3 +10,5 @@ home/
 *.jpeg
 *.png
 *.heic
+.lastseen/
+lastseen_eval_results.json

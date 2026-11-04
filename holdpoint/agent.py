@@ -19,6 +19,12 @@ What Wonder can NOT do, by design:
 
 If Wonder is unavailable or misbehaves, a fixed plan takes over (same rules), so
 the walk-through still works; the app shows which planner was used.
+
+Optional last step (HOLDPOINT_LEAVING_FIND, e.g. "keys"): find the user's own
+belongings with Last Seen. Wonder is told where each was last seen (from memory,
+with how long ago and how sure) and guides the user there; only a verified view
+(SAM 3.1 + Muse Spark agree) counts as "found". Missing keys never turn a safe
+house into "not all clear": that verdict comes from the appliance checks alone.
 """
 from __future__ import annotations
 
@@ -47,6 +53,9 @@ Rules:
   that guidance in the instruction.
 - If a result found something ON, ask the user to turn it off, then check the same item again.
 - Stop re-checking an item after its attempts run out; move on.
+- items_to_find (if any) are the user's belongings, not appliances: check them LAST. The first time,
+  tell the user where it was last seen (from items_to_find) and to look around there slowly. If a result
+  says not found, use its guidance in the next instruction. Never say an item is found yourself.
 - When every item has been checked or has no attempts left, call finish."""
 
 TOOLS = [
@@ -91,6 +100,12 @@ class Session:
     planner: str = "wonder"
     wonder_turns: int = 0
     started: float = field(default_factory=time.time)
+    find_where: dict[str, str] = field(default_factory=dict)   # belongings to find -> where last seen (spoken)
+    reminder: list[str] = field(default_factory=list)          # "don't forget your ..." (Last Seen items)
+
+    @property
+    def find_items(self) -> list[str]:
+        return [i for i in self.checkable if i in self.find_where]
 
 
 # ---------------------------------------------------------------- the deterministic parts
@@ -98,6 +113,8 @@ class Session:
 def item_status(result: dict | None) -> str:
     if result is None:
         return "unchecked"
+    if result.get("kind") == "find":
+        return "found" if result.get("found") else "unconfirmed"
     if result.get("all_clear"):
         return "off"
     if result.get("danger"):
@@ -109,13 +126,15 @@ def summary(s: Session, now: datetime | None = None) -> tuple[str, bool]:
     """The final sentence. Built from verified results only; never from Wonder's words."""
     now = now or datetime.now()
     stamp = now.strftime("%-I:%M %p")
-    on = [i for i in s.checkable if item_status(s.results.get(i)) == "on"]
-    unconfirmed = [i for i in s.checkable if item_status(s.results.get(i)) in ("unconfirmed", "unchecked")]
-    off = [i for i in s.checkable if item_status(s.results.get(i)) == "off"]
+    safety = [i for i in s.checkable if i not in s.find_where]      # appliances decide "all clear"
+    on = [i for i in safety if item_status(s.results.get(i)) == "on"]
+    unconfirmed = [i for i in safety if item_status(s.results.get(i)) in ("unconfirmed", "unchecked")]
+    off = [i for i in safety if item_status(s.results.get(i)) == "off"]
     manual = [i for i in s.checklist if i not in s.checkable]
+    found = _found_sentence(s)
 
     if on:
-        return f"Not all clear. The {' and the '.join(on)} may still be on. Checked {stamp}.", False
+        return f"Not all clear. The {' and the '.join(on)} may still be on.{found} Checked {stamp}.", False
     parts = []
     if off:
         parts.append(f"{_join(off).capitalize()} verified off.")
@@ -124,23 +143,43 @@ def summary(s: Session, now: datetime | None = None) -> tuple[str, bool]:
     if manual:
         parts.append(f"I can't check the {_join(manual)}. Please check {'it' if len(manual) == 1 else 'them'} yourself.")
     if off and not unconfirmed and not manual:
-        return f"All clear. {_join(off).capitalize()} verified off. Checked {stamp}.", True
-    return " ".join(parts) + f" Checked {stamp}.", False
+        remind = f" You're all set. Don't forget your {_join(s.reminder)}." if s.reminder else ""
+        return f"All clear. {_join(off).capitalize()} verified off.{found}{remind} Checked {stamp}.", True
+    return " ".join(parts) + f"{found} Checked {stamp}.", False
+
+
+def _found_sentence(s: Session) -> str:
+    """Belongings: " Keys found." / " Couldn't find your keys. <where last seen>". Never
+    changes the all-clear verdict, which is about the appliances only."""
+    out = []
+    for item in s.find_items:
+        if item_status(s.results.get(item)) == "found":
+            out.append(f"{item.capitalize()} found.")
+        else:
+            out.append(f"Couldn't find your {item}. {s.find_where[item]}".strip())
+    return (" " + " ".join(out)) if out else ""
 
 
 def _join(items: list[str]) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
+def default_instruction(s: Session, item: str) -> str:
+    if item in s.find_where:
+        return f"Now your {item}. {s.find_where[item]} Look around there slowly."
+    return DEFAULT_INSTRUCTION.get(item, f"Point the phone at the {item}.")
+
+
 def fixed_plan(s: Session) -> tuple[str, str | None, str]:
-    """Same rules as the prompt, as code. Returns (tool, item, instruction)."""
+    """Same rules as the prompt, as code. Returns (tool, item, instruction).
+    Appliances first, belongings last (the checklist order already puts them last)."""
     for item in s.checkable:
         n = s.attempts.get(item, 0)
         status = item_status(s.results.get(item))
-        if status == "off" or n >= MAX_ATTEMPTS:
+        if status in ("off", "found") or n >= MAX_ATTEMPTS:
             continue
         if status == "unchecked":
-            return "check_item", item, DEFAULT_INSTRUCTION.get(item, f"Point the phone at the {item}.")
+            return "check_item", item, default_instruction(s, item)
         guidance = s.results[item].get("guidance") or ""
         if status == "on":
             return "check_item", item, f"Please turn the {item} off, then point the phone at it again."
@@ -151,6 +190,10 @@ def fixed_plan(s: Session) -> tuple[str, str | None, str]:
 # ---------------------------------------------------------------- Wonder
 
 def _result_for_wonder(item: str, result: dict, attempts: int) -> dict:
+    if result.get("kind") == "find":
+        return {"item": item, "verified_found": bool(result.get("found")), "verified_answer": result.get("answer"),
+                "guidance": result.get("guidance"), "attempts_used": attempts,
+                "attempts_left": max(0, MAX_ATTEMPTS - attempts)}
     return {"item": item, "verified_off": bool(result.get("all_clear")),
             "something_on": bool(result.get("danger")), "verified_answer": result.get("answer"),
             "guidance": result.get("guidance"), "attempts_used": attempts,
@@ -198,7 +241,7 @@ def _ask_wonder(client, s: Session) -> tuple[str, str | None, str]:
         raise RuntimeError(f"asked to re-check {item} with no attempts left")
     s.open_call = first.id  # the tool result is sent after the check runs
     instruction = (args.get("instruction") or "").strip()[:MAX_INSTRUCTION]
-    return "check_item", item, instruction or DEFAULT_INSTRUCTION.get(item, f"Point the phone at the {item}.")
+    return "check_item", item, instruction or default_instruction(s, item)
 
 
 def _next(client, s: Session) -> Step:
@@ -224,9 +267,16 @@ def _next(client, s: Session) -> Step:
 
 
 def start(client, checklist: list[str], checkable: list[str], said: str = "",
-          locations: dict[str, str] | None = None) -> tuple[Session, Step]:
+          locations: dict[str, str] | None = None,
+          find_where: dict[str, str] | None = None,
+          reminder: list[str] | None = None) -> tuple[Session, Step]:
+    """find_where: belongings to find at the end -> where Last Seen last saw them (spoken text).
+    reminder: belongings named in the closing "You're all set. Don't forget your ..." (all clear only)."""
+    find_where = find_where or {}
+    checklist = [i for i in checklist if i not in find_where] + list(find_where)   # belongings last
     s = Session(id=uuid.uuid4().hex[:12], checklist=checklist,
-                checkable=[i for i in checklist if i in checkable])
+                checkable=[i for i in checklist if i in checkable or i in find_where],
+                find_where=dict(find_where), reminder=list(reminder or []))
     s.messages = [
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": json.dumps({
@@ -234,6 +284,7 @@ def start(client, checklist: list[str], checkable: list[str], said: str = "",
             "items_you_can_check": s.checkable,
             "items_the_user_must_check_themselves": [i for i in checklist if i not in s.checkable],
             "item_locations": locations or {"stove": "kitchen", "oven display": "kitchen"},
+            **({"items_to_find": s.find_where} if s.find_where else {}),
             "max_attempts_per_item": MAX_ATTEMPTS})},
     ]
     if not s.checkable:

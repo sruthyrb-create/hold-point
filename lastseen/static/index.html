@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Last Seen</title>
+<style>
+  :root { --bg:#111; --fg:#f4f4f4; --mut:#9a9a9a; --card:#1d1d1d; --ok:#2e8b57; --warn:#b8860b; --bad:#b03a2e; --acc:#3b82f6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:18px/1.4 system-ui, sans-serif; padding:16px; max-width:640px; margin-inline:auto; }
+  h1 { font-size:26px; margin:0 0 4px; } .sub { color:var(--mut); margin:0 0 16px; }
+  button { font:inherit; border:0; border-radius:14px; padding:16px; width:100%; margin:6px 0; background:var(--card); color:var(--fg); }
+  button.big { font-size:24px; padding:26px; background:var(--acc); }
+  button.rec { background:var(--bad); }
+  input { font:inherit; width:100%; padding:12px; border-radius:10px; border:1px solid #444; background:#000; color:var(--fg); margin:4px 0; }
+  #answer { font-size:24px; min-height:3em; padding:16px; border-radius:14px; background:var(--card); margin:10px 0; }
+  #answer.ok { background:var(--ok); } #answer.unsure { background:var(--warn); color:#000; } #answer.bad { background:var(--bad); }
+  #watchbar { display:none; background:var(--bad); color:#fff; padding:10px 14px; border-radius:10px; font-weight:700; margin-bottom:8px; }
+  #watchbar.on { display:block; }
+  video { width:100%; border-radius:14px; background:#000; max-height:40vh; }
+  details { background:var(--card); border-radius:14px; padding:12px; margin:10px 0; } summary { cursor:pointer; }
+  ul { padding-left:18px; margin:6px 0; } li { margin:3px 0; font-size:15px; color:#ddd; }
+  .mut { color:var(--mut); font-size:15px; } label { font-size:15px; color:var(--mut); }
+  .row { display:flex; gap:8px; } .row button { flex:1; }
+</style>
+</head>
+<body>
+<h1>Last Seen</h1>
+<p class="sub">Where did I leave it? Remembers your things, and says when it isn't sure.</p>
+
+<section id="start">
+  <label for="pass">Passcode</label>
+  <input id="pass" type="password" autocomplete="current-password">
+  <button class="big" id="go">Start</button>
+  <p id="startmsg" class="mut" aria-live="polite"></p>
+</section>
+
+<section id="live" hidden>
+  <div id="watchbar" role="status">● WATCHING: camera frames are being checked</div>
+  <div id="answer" aria-live="assertive" role="status">Ready.</div>
+  <p id="heard" class="mut"></p>
+  <button class="big" id="talk">Ask (tap, speak, tap)</button>
+  <div class="row">
+    <button id="watch">Start watching</button>
+    <button id="guide" disabled>Guide me to it</button>
+  </div>
+  <video id="video" playsinline muted></video>
+  <p id="camstate" class="mut">Camera off.</p>
+
+  <details>
+    <summary>Type a question</summary>
+    <input id="q" placeholder="where are my glasses?">
+    <button id="ask">Ask</button>
+  </details>
+
+  <details>
+    <summary>Setup: items and landmarks</summary>
+    <p class="mut">Item: name it, then take 3 photos from different sides on a plain surface.</p>
+    <input id="iname" placeholder="name, e.g. glasses">
+    <input id="iphrase" placeholder="word for SAM (optional), e.g. eyeglasses">
+    <input id="idesc" placeholder="description (optional; Muse Spark writes one)">
+    <input id="ialias" placeholder="other names, comma separated (optional)">
+    <button id="enrol">Take 3 photos and enrol</button>
+    <p class="mut">Landmark: point at a fixed thing (stove, sofa, desk, door).</p>
+    <input id="lname" placeholder="landmark, e.g. stove">
+    <input id="lroom" placeholder="room, e.g. kitchen">
+    <input id="lphrase" placeholder="word for SAM (optional)">
+    <button id="addlm">Take a photo and add landmark</button>
+    <ul id="setuplist"></ul>
+  </details>
+
+  <details>
+    <summary>Memories and model calls</summary>
+    <button id="refresh">Refresh memories</button>
+    <button id="forget">Forget everything</button>
+    <ul id="mems"></ul>
+    <p class="mut">Model calls (latest first):</p>
+    <ul id="calls"></ul>
+    <p id="spent" class="mut"></p>
+  </details>
+  <label><input type="checkbox" id="tts" checked style="width:auto"> Read answers aloud (phone voice)</label><br>
+  <label><input type="checkbox" id="handsfree" style="width:auto"> Hands-free: always listening for commands</label>
+</section>
+
+<script>
+const BASE = location.pathname.replace(/\/$/, "");   // "" standalone, "/lastseen" inside Hold Point
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const video = $("video");
+const WATCH_MS = 6000, FIND_MS = 2500, GUIDE_LIMIT_MS = 180000, MAX_SIDE = 1280, RATE = 16000;
+let pass = "", cam = null, mic = null, ctx = null, watching = false, lastItem = null, recording = null, finding = false;
+let speaking = false, voiceBusy = false, guideStop = false;
+
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function buzz(p) { if (navigator.vibrate) navigator.vibrate(p); }
+
+function say(text, kind = "") {
+  $("answer").className = kind; $("answer").textContent = text;
+  if ($("tts").checked && "speechSynthesis" in window) {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); speaking = true;
+    const done = () => { setTimeout(() => { speaking = false; }, 250); };
+    u.onend = done; u.onerror = done; setTimeout(done, 2000 + text.length * 90);   // never stay muted
+    speechSynthesis.speak(u);
+  }
+}
+function kindFor(status) {
+  return { confirmed: "ok", two_places: "unsure", unsure: "unsure", stale: "unsure", never_seen: "bad" }[status] || "";
+}
+function logCalls(calls, spent) {
+  for (const c of (calls || []).slice().reverse()) {
+    const li = document.createElement("li"); li.textContent = `${c.model} · ${c.seconds}s`;
+    $("calls").prepend(li);
+  }
+  while ($("calls").children.length > 40) $("calls").lastChild.remove();
+  if (spent) $("spent").textContent = spent;
+}
+
+async function api(url, body, isJson) {
+  const opts = { method: body === undefined ? "GET" : "POST", headers: { "X-LastSeen-Passcode": pass } };
+  if (isJson) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  else if (body !== undefined) opts.body = body;
+  const res = await fetch(BASE + url, opts);
+  if (res.status === 429) return { busy: true };
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `error ${res.status}`);
+  return data;
+}
+
+// ------------------------------------------------ start
+$("pass").value = load("ls-pass") || "";
+$("go").onclick = async () => {
+  pass = $("pass").value.trim();
+  try { await api("/api/status"); } catch (e) { $("startmsg").textContent = e.message; return; }
+  store("ls-pass", pass);
+  try {
+    mic = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+  } catch (e) { $("startmsg").textContent = "Last Seen needs the microphone to hear questions."; return; }
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  $("start").hidden = true; $("live").hidden = false;
+  say("Ready. Tap Ask and say: where are my glasses?");
+  showSetup();
+};
+
+// ------------------------------------------------ camera
+async function camOn() {
+  if (cam && cam.getVideoTracks().some(t => t.readyState === "live")) return;
+  cam = await navigator.mediaDevices.getUserMedia({ audio: false,
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+  video.srcObject = cam; await video.play(); $("camstate").textContent = "Camera on."; await sleep(800);
+}
+function camOff() {
+  if (cam) cam.getTracks().forEach(t => t.stop());
+  cam = null; video.srcObject = null; $("camstate").textContent = "Camera off.";
+}
+async function grab() {
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) throw new Error("camera has no picture yet");
+  const s = Math.min(1, MAX_SIDE / Math.max(w, h)), c = document.createElement("canvas");
+  c.width = Math.round(w * s); c.height = Math.round(h * s);
+  c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+  return await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+}
+
+// ------------------------------------------------ watching
+$("watch").onclick = async () => {
+  watching = !watching;
+  await api("/api/watching", { on: watching }, true);
+  $("watch").textContent = watching ? "Stop watching" : "Start watching";
+  $("watchbar").classList.toggle("on", watching);
+  if (watching) { await camOn(); say("Watching."); watchLoop(); }
+  else { if (!finding) camOff(); say("Stopped watching."); }
+};
+async function watchLoop() {
+  while (watching) {
+    if (!finding) {
+      try {
+        const f = new FormData();     // 3 quick frames; the server keeps the sharpest
+        for (let i = 0; i < 3; i++) { f.append("frames", await grab(), `w${i}.jpg`); if (i < 2) await sleep(150); }
+        const r = await api("/api/frame", f);
+        if (!r.busy) {
+          logCalls(r.calls, r.spent);
+          for (const s of r.sightings || []) {
+            const li = document.createElement("li");
+            li.textContent = `${new Date(s.t * 1000).toLocaleTimeString()} ${s.item}: ${s.status}` +
+              (s.landmark ? ` · ${s.relation} ${s.landmark}` : "");
+            $("mems").prepend(li);
+          }
+        }
+      } catch (e) { $("camstate").textContent = `Watching problem: ${e.message}`; }
+    }
+    await sleep(WATCH_MS);
+  }
+}
+
+// ------------------------------------------------ asking
+function showAnswer(r) { handleReply(r); }
+function handleReply(r) {
+  if (r.transcript) $("heard").textContent = `Heard: “${r.transcript}” · Muse Voice Transcribe`;
+  say(r.text, kindFor(r.status));
+  if (r.status === "watch_on" || r.status === "watch_off") {
+    watching = r.status === "watch_on"; $("watchbar").classList.toggle("on", watching);
+    $("watch").textContent = watching ? "Stop watching" : "Start watching";
+    if (watching) camOn().then(watchLoop); else if (!finding) camOff();
+  }
+  if (r.intent === "guide" && r.item) { lastItem = r.item; $("guide").disabled = false; startGuide(r.item, r.transcript || ""); return; }
+  if (r.intent === "stop") { guideStop = true; }
+  if (r.intent === "where" && r.item) { lastItem = r.item; $("guide").disabled = false; buzz(r.status === "confirmed" ? 80 : [60, 60, 60]); }
+  logCalls([], r.spent);
+}
+$("ask").onclick = async () => {
+  try { showAnswer(await api("/api/ask", { text: $("q").value }, true)); } catch (e) { say(e.message, "bad"); }
+};
+
+// tap to start recording, tap again to stop (max 8 s)
+$("talk").onclick = () => recording ? stopRec() : startRec();
+function startRec() {
+  const src = ctx.createMediaStreamSource(mic), proc = ctx.createScriptProcessor(4096, 1, 1), chunks = [];
+  proc.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  src.connect(proc); proc.connect(ctx.destination);
+  recording = { src, proc, chunks, timer: setTimeout(stopRec, 8000) };
+  speechSynthesis && speechSynthesis.cancel();
+  $("talk").classList.add("rec"); $("talk").textContent = "Listening… tap to send"; buzz(40);
+}
+async function stopRec() {
+  const r = recording; if (!r) return; recording = null; clearTimeout(r.timer);
+  r.proc.disconnect(); r.src.disconnect();
+  $("talk").classList.remove("rec"); $("talk").textContent = "Ask (tap, speak, tap)";
+  const f = new FormData(); f.append("audio", toWav(r.chunks, ctx.sampleRate), "q.wav");
+  say("Thinking…");
+  try { showAnswer(await api("/api/voice", f)); } catch (e) { say(`Couldn't understand that (${e.message}).`, "bad"); }
+}
+function toWav(chunks, inRate) {
+  let n = 0; for (const c of chunks) n += c.length;
+  const all = new Float32Array(n); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  const ratio = inRate / RATE, len = Math.floor(all.length / ratio), pcm = new Int16Array(len);
+  for (let i = 0; i < len; i++) {
+    const a = Math.floor(i * ratio), b = Math.min(all.length, Math.floor((i + 1) * ratio));
+    let sum = 0; for (let j = a; j < b; j++) sum += all[j];
+    const v = Math.max(-1, Math.min(1, sum / Math.max(1, b - a))); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+  }
+  const buf = new ArrayBuffer(44 + pcm.length * 2), d = new DataView(buf);
+  const str = (off, t) => { for (let i = 0; i < t.length; i++) d.setUint8(off + i, t.charCodeAt(i)); };
+  str(0, "RIFF"); d.setUint32(4, 36 + pcm.length * 2, true); str(8, "WAVE"); str(12, "fmt ");
+  d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true); d.setUint32(24, RATE, true);
+  d.setUint32(28, RATE * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true); str(36, "data");
+  d.setUint32(40, pcm.length * 2, true); new Int16Array(buf, 44).set(pcm);
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+// ------------------------------------------------ guide me (Muse Wonder plans; both witnesses verify)
+$("guide").onclick = () => lastItem && startGuide(lastItem, "");
+async function sayWait(text, kind = "") {
+  say(text, kind);
+  if (!$("tts").checked || !("speechSynthesis" in window)) return sleep(800);
+  speaking = true;
+  await new Promise(res => { const t0 = Date.now(); const iv = setInterval(() => {
+    if (!speechSynthesis.speaking || Date.now() - t0 > 2000 + text.length * 90) { clearInterval(iv); res(); } }, 150); });
+  speaking = false; await sleep(250);
+}
+function showTrace(trace) {
+  for (const t of (trace || []).slice(-1)) {
+    const li = document.createElement("li"); li.textContent = `${t.model} · ${t.call} · “${t.said || ""}”`;
+    $("calls").prepend(li);
+  }
+}
+async function startGuide(item, said) {
+  if (finding) return;
+  finding = true; guideStop = false; $("guide").textContent = "Stop guiding";
+  $("guide").onclick = () => { guideStop = true; };
+  const t0 = Date.now();
+  try {
+    let r = await api("/api/guide/start", { item, said }, true);
+    showTrace(r.trace); await camOn();
+    while (r.action === "look" && !guideStop && Date.now() - t0 < GUIDE_LIMIT_MS) {
+      if (r.say) { await sayWait(r.say); }
+      await sleep(FIND_MS);
+      const f = new FormData(); f.append("session", r.session); f.append("frames", await grab(), "g.jpg");
+      const next = await api("/api/guide/frame", f);
+      if (next.busy) continue;
+      r = next; logCalls(r.look && r.look.calls, r.spent); showTrace(r.trace);
+      if (r.action === "look" && !r.say && r.look && r.look.landmark_seen) $("answer").textContent = "I can see the landmark. Keep turning slowly.";
+    }
+    if (guideStop) say("Stopped guiding.");
+    else if (r.action === "done") { say(r.say, r.found ? "ok" : "unsure"); buzz(r.found ? [100, 50, 100] : [60, 60, 60]); }
+    else say("That took too long. Ask again when you're ready.", "unsure");
+  } catch (e) { say(e.message, "bad"); }
+  finally {
+    finding = false; $("guide").textContent = "Guide me to it"; $("guide").onclick = () => lastItem && startGuide(lastItem, "");
+    if (!watching) camOff();
+  }
+}
+
+// ------------------------------------------------ hands-free: always listening, ignores non-commands
+$("handsfree").onchange = () => $("handsfree").checked ? startListening() : stopListening();
+let listener = null;
+function startListening() {
+  const src = ctx.createMediaStreamSource(mic), proc = ctx.createScriptProcessor(4096, 1, 1);
+  const chunkMs = 4096 / ctx.sampleRate * 1000;
+  let floor = 0.01, rec = null, pre = [], loud = 0, quiet = 0;
+  proc.onaudioprocess = e => {
+    const x = new Float32Array(e.inputBuffer.getChannelData(0));
+    if (speaking || voiceBusy || recording) { rec = null; loud = 0; pre = []; return; }   // don't hear ourselves
+    let sq = 0; for (let i = 0; i < x.length; i++) sq += x[i] * x[i];
+    const rms = Math.sqrt(sq / x.length), thr = Math.max(0.02, floor * 3);
+    if (!rec) {
+      floor = 0.95 * floor + 0.05 * Math.min(rms, 0.05);
+      pre.push(x); if (pre.length > 4) pre.shift();
+      loud = rms > thr ? loud + 1 : 0;
+      if (loud >= 2) { rec = [...pre]; quiet = 0; $("heard").textContent = "Hearing you…"; }
+    } else {
+      rec.push(x); quiet = rms > thr ? 0 : quiet + 1;
+      if (quiet * chunkMs > 800 || rec.length * chunkMs > 6000) {
+        const clip = rec; rec = null; loud = 0; pre = [];
+        if (clip.length * chunkMs > 700) heard(toWav(clip, ctx.sampleRate)); else $("heard").textContent = "";
+      }
+    }
+  };
+  src.connect(proc); proc.connect(ctx.destination);
+  listener = { src, proc }; $("heard").textContent = "Listening hands-free.";
+}
+function stopListening() {
+  if (listener) { listener.proc.disconnect(); listener.src.disconnect(); listener = null; }
+  $("heard").textContent = "";
+}
+async function heard(wav) {
+  voiceBusy = true;
+  try {
+    const f = new FormData(); f.append("audio", wav, "h.wav");
+    const r = await api("/api/voice", f);
+    if (!r || r.busy || !r.transcript) return;
+    if (r.intent === null) { $("heard").textContent = `Heard: “${r.transcript}” (not a command)`; return; }
+    voiceBusy = false; handleReply(r);
+  } catch (e) { $("heard").textContent = `Couldn't understand that (${e.message}).`; }
+  finally { voiceBusy = false; }
+}
+
+// ------------------------------------------------ setup
+async function showSetup() {
+  try {
+    const s = await api("/api/status");
+    $("setuplist").innerHTML = "";
+    for (const i of s.items) { const li = document.createElement("li"); li.textContent = `Item: ${i.name} (${i.description})`; $("setuplist").append(li); }
+    for (const l of s.landmarks) { const li = document.createElement("li"); li.textContent = `Landmark: ${l.name}, ${l.room}`; $("setuplist").append(li); }
+    $("spent").textContent = s.spent;
+  } catch (e) {}
+}
+$("enrol").onclick = async () => {
+  const name = $("iname").value.trim(); if (!name) { say("Type the item's name first.", "bad"); return; }
+  await camOn(); const f = new FormData();
+  for (let i = 0; i < 3; i++) { say(`Photo ${i + 1} of 3. Hold still.`); await sleep(1500); f.append("frames", await grab(), `e${i}.jpg`); buzz(40); }
+  f.append("name", name); f.append("sam_phrase", $("iphrase").value); f.append("description", $("idesc").value); f.append("aliases", $("ialias").value);
+  say("Enrolling…");
+  try { const r = await api("/api/enrol", f); say(`Enrolled your ${r.item.name}: ${r.item.description}`, "ok"); showSetup(); }
+  catch (e) { say(e.message, "bad"); } finally { if (!watching) camOff(); }
+};
+$("addlm").onclick = async () => {
+  const name = $("lname").value.trim(), room = $("lroom").value.trim();
+  if (!name || !room) { say("Type the landmark and its room first.", "bad"); return; }
+  await camOn(); say("Hold still."); await sleep(1200);
+  const f = new FormData(); f.append("frames", await grab(), "l.jpg"); f.append("name", name); f.append("room", room); f.append("sam_phrase", $("lphrase").value);
+  try { const r = await api("/api/landmark", f); say(`Added the ${r.landmark.name} in the ${r.landmark.room}.`, "ok"); showSetup(); }
+  catch (e) { say(e.message, "bad"); } finally { if (!watching) camOff(); }
+};
+
+// ------------------------------------------------ memories
+$("refresh").onclick = async () => {
+  const r = await api("/api/memories"); $("mems").innerHTML = "";
+  for (const s of r.memories.slice().reverse()) {
+    const li = document.createElement("li");
+    li.textContent = `${new Date(s.t * 1000).toLocaleTimeString()} ${s.item}: ${s.status}` + (s.landmark ? ` · ${s.relation} ${s.landmark}` : "");
+    $("mems").append(li);
+  }
+};
+$("forget").onclick = async () => { const r = await api("/api/forget", new FormData()); say(`Deleted ${r.deleted} memories.`); $("mems").innerHTML = ""; };
+</script>
+</body>
+</html>

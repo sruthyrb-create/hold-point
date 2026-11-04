@@ -23,7 +23,8 @@ pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.setuptools]
-packages = ["holdpoint"]
+packages = ["holdpoint", "lastseen"]
 
 [tool.setuptools.package-data]
 holdpoint = ["static/*"]
+lastseen = ["static/*"]

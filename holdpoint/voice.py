@@ -94,4 +94,4 @@ def parse_intent(text: str) -> str | None:
     return None
 
 
-HELP = "Say: check the stove. Or: I'm leaving, check the house."
+HELP = "Say: I'm leaving, check the house. Or: where are my keys?"

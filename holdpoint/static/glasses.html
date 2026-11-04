@@ -58,7 +58,8 @@
 
   <section id="start">
     <p>Enter the passcode, then tap Start. Hold Point will ask to use the camera and microphone once.
-       After that it is hands-free: just say <strong>"I'm going out, check the house."</strong></p>
+       After that it is hands-free: just say <strong>"I'm going out, check the house."</strong>
+       Later, ask <strong>"Where are my keys?"</strong></p>
     <label for="pass" class="sr">Passcode</label>
     <input id="pass" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off"
            spellcheck="false" placeholder="Passcode">
@@ -165,7 +166,7 @@ async function grab() {
 
 // ---------------------------------------------------------------- server calls
 async function post(url, form, json) {
-  const opts = { method: "POST", headers: { "X-Holdpoint-Passcode": passcode } };
+  const opts = { method: "POST", headers: { "X-Holdpoint-Passcode": passcode, "X-LastSeen-Passcode": passcode } };
   if (json) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(json); } else opts.body = form;
   const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 90000); opts.signal = ctrl.signal;
   try {
@@ -201,6 +202,11 @@ async function findStove(limitMs = 90000) {
 const cls = s => s === "on" ? "on" : s === "off" ? "offst" : "na";
 function showCheck(r) {
   if (!r) return;
+  if (r.kind === "find") {      // Last Seen: SAM 3.1 finds the item, Muse Spark confirms it's theirs
+    for (const c of r.calls) step(`<code>${esc(c.model)}</code> ${esc(c.job)} · ${c.seconds}s`);
+    step(`<code>both must agree (no AI)</code> → ${esc(r.answer)} · $${r.cost_usd.toFixed(3)}`);
+    return;
+  }
   if (r.overlay) { $("overlay").src = r.overlay; $("overlay").style.display = "block"; }
   let k = "<tr><th>Knob</th><th>Muse Spark</th><th>SAM 3.1 + angle</th><th>Decision</th></tr>";
   for (const it of r.items) {
@@ -240,11 +246,13 @@ async function leaveHome(said) {
       await say(r.say, r.check ? (r.check.danger ? "danger" : "unsure") : "");
       if (wasDanger) await sleep(5000);            // time to reach the knob and turn it off
       await camOn();
-      if (!(await findStove())) {
+      if (r.kind === "find") {                     // a belonging: look around, no stove scout
+        chip(`Looking for your ${r.item} · SAM 3.1 + Muse Spark`, true);
+        await sleep(1500);
+      } else if (!(await findStove())) {
         if (!cancelled) await say("I couldn't find the stove. Say: check the house, to try again.", "unsure");
         break;
-      }
-      chip("Checking · Muse Spark + SAM 3.1", true);
+      } else chip("Checking · Muse Spark + SAM 3.1", true);
       const f = await frames();
       const next = await post(`/api/agent/step?session=${encodeURIComponent(r.session)}`, f);
       if (next.busy) { await sleep(800); continue; }
@@ -278,6 +286,38 @@ async function checkStove() {
     }
   } catch (e) {
     await say(`Something went wrong: ${e.message}`, "unsure");
+  } finally {
+    camOff(); mode = "idle"; chip("Listening");
+  }
+}
+
+// ---------------------------------------------------------------- "guide me to my keys" (Last Seen: Muse Wonder plans,
+// SAM 3.1 + Muse Spark must agree before it says "found")
+async function guideMe(item, said, opening) {
+  if (mode !== "idle") return;
+  mode = "guide"; cancelled = false; shownTrace = 0; $("steps").innerHTML = "";
+  chip("Planning · Muse Wonder");
+  const t0 = Date.now();
+  try {
+    if (opening) await say(opening);
+    let r = await post("/lastseen/api/guide/start", null, { item, said });
+    showTrace(r.trace || []);
+    await camOn();
+    while (r.action === "look" && !cancelled && Date.now() - t0 < 180000) {
+      if (r.say) await say(r.say);
+      chip(`Looking for your ${item} · SAM 3.1 + Muse Spark`, true);
+      await sleep(2000);
+      const f = new FormData(); f.append("session", r.session); f.append("frames", await grab(), "g.jpg");
+      const next = await post("/lastseen/api/guide/frame", f);
+      if (next.busy) continue;
+      r = next; showTrace(r.trace || []);
+      for (const c of (r.look && r.look.calls) || []) step(`<code>${esc(c.model)}</code> · ${c.seconds}s`);
+    }
+    if (cancelled) return;
+    if (r.action === "done") { buzz(r.found ? [120, 80, 120] : [80, 80, 80]); await say(r.say, r.found ? "clear" : "unsure"); }
+    else await say("That took too long. Ask me again when you're ready.", "unsure");
+  } catch (e) {
+    await say(`Something went wrong: ${e.message}.`, "unsure");
   } finally {
     camOff(); mode = "idle"; chip("Listening");
   }
@@ -347,6 +387,8 @@ async function heard(wav) {
     if (r.intent === "leaving") { leaveHome(r.transcript); return; }
     if (r.intent === "check_stove") { checkStove(); return; }
     if (r.intent === "check_oven") { await say(r.reply, "unsure"); return; }
+    if (r.action === "where") { await say(r.reply, r.status === "confirmed" ? "clear" : "unsure"); return; }
+    if (r.action === "guide") { guideMe(r.item, r.transcript, r.reply); return; }
     // anything else: ignore quietly (it may not have been meant for us)
   } catch (e) {
     $("heard").textContent = `Couldn't understand that (${e.message}).`;
