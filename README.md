@@ -2,7 +2,9 @@
 
 **The leaving-home check that won't guess.**
 
-Say *"I'm leaving, check the house,"* and Hold Point walks you through the stove, oven, taps and doors. It verifies each one with two independent Meta models and says "all clear" only when it can prove it. Anything it can't confirm, it names, and it tells you exactly how to move the camera.
+Say *"I'm leaving, check the house,"* and Hold Point walks you to the stove and checks every knob with two independent Meta models. It says "all clear" only when it can prove it. Anything it can't confirm, it names, and it tells you exactly how to move the camera. Then: *"You're all set. Don't forget your keys, glasses and wallet."* Ask *"where are my keys?"* and it tells you where it last saw them, or that it doesn't know.
+
+Today it verifies stove knobs and finds your belongings; the oven display is experimental, and taps and doors are next.
 
 It's built first for people who can't double-check an AI's answer by looking: **blind and low-vision people**. It works just as well for **older adults** and anyone who has ever turned back halfway down the street to check the stove.
 
@@ -37,7 +39,7 @@ Vision assistants describe what they see. Hold Point is built to **know what it 
 7. **"Where are my keys?"** Once the house is verified, Hold Point closes with "You're all set. Don't forget your keys, glasses and wallet." Ask "where are my keys?" and it answers from what it has seen: an exact place when a known landmark was in view ("on the computer table, in the study, 5 minutes ago"); otherwise what it saw, clearly marked as unconfirmed ("on what looked like a brown wooden desk"). "Guide me to my keys" walks you there and says "found" only when both witnesses agree on a live view. It never invents a place (Last Seen, below).
 8. **Measured honesty.** On a labelled test set built by injecting defects into real footage, we report how often Hold Point is **confidently wrong** compared with a plain AI asked the same question.
 
-> **Headline result:** *a plain AI was confidently wrong __% of the time; Hold Point __%, abstaining __% of the time with a specific fix.* (filled in after evaluation)
+> **Headline result (20 real stove checks + 80 degraded copies):** asked "are all the burners off?", plain Muse Spark was **confidently wrong 54%** of the time, and when a knob was on it said **"all off" 64%** of the time. Hold Point was **wrong 0%** of the time: it answered when it could prove the answer, and otherwise refused with a specific fix. [Details and caveats below.](#evaluation)
 
 ---
 
@@ -75,11 +77,14 @@ The capture layer targets 720p at 30 fps, matching what Ray-Ban Meta glasses str
 ## How it works
 
 ```
-                        ┌─► Witness A: Muse Spark 1.3 (structured JSON per item, per frame) ─┐
-camera frames ──────────┼─► Witness B: SAM 3.1 tracking → knob angle vs. OFF mark ───────────┼─► decision layer ─► short spoken answer
-                        └─► frame-quality checks (dark / blur / glare / too far) ────────────┘   (no AI: agree or abstain)
-                                                                                                        │
-"I'm leaving, check the house" ─► Muse Wonder plans the checklist from the home profile ───────────────┘─► one-sentence summary + saved record
+                        ┌─► Witness A: Muse Spark 1.3 (structured JSON per knob, per frame) ─┐
+4 phone frames ─────────┼─► Witness B: SAM 3.1 per frame → knob angle vs. OFF mark (geometry) ─┼─► decision layer ─► short spoken answer
+                        └─► frame-quality checks (dark / blur / glare / too far) ─────────────┘   (no AI: agree or abstain)
+                                                                                                         │
+"I'm leaving, check the house" ─► Muse Wonder plans and re-checks (never states a result) ──────────────┘─► one-sentence summary
+                                                                                                             + saved record + "don't forget your keys"
+Last Seen (watching): SAM 3.1 finds item ─► Muse Spark: "is it YOUR keys? next to which landmark?" ─► SAM 3.1 landmark + geometry
+                      ─► memory (confirmed / place unverified) ─► "where are my keys?" ─► Muse Wonder guides ─► "found" only if both agree
 ```
 
 | Meta model | Role |
@@ -87,30 +92,30 @@ camera frames ──────────┼─► Witness B: SAM 3.1 trackin
 | Muse Spark 1.3 | Witness A: per-frame structured readings of each knob, display and indicator; Last Seen: confirms an object is the user's own item and names the nearest landmark |
 | SAM 3.1 | Witness B: locates each knob (and later, displays) and tracks them across frames; geometry then measures each knob. Last Seen: finds items and landmarks by name |
 | Muse Wonder | Leaving-home agent: plans and sequences the checks; Last Seen: plans the search for a lost item. Never states a result; final sentences are built by code |
-| Muse Voice Transcribe | Voice input |
-| Muse Glimmer (open weights) | Local mode: the vision witness running on self-hosted hardware, so home video never leaves your control |
+| Muse Voice Transcribe | Voice input (hands-free commands and questions) |
+
+**Where they run:** all four models are called through the Meta Model API (`api.meta.ai`). No other AI models are used at runtime. The decision layer, geometry, frame-quality checks and every final sentence are plain code. A local, open-weights mode (Muse Glimmer) is planned, not built.
 
 ---
 
 ## Status
 
-- [x] Deterministic decision layer: answers only when both witnesses agree over several frames, otherwise abstains with a reason code
-- [x] Knob-angle geometry (Witness B maths) from segmentation masks
-- [x] Frame-quality checks that veto evidence independently of either model
-- [x] Short, action-first spoken answers with camera guidance
-- [x] Defect-injection script that turns one clean walkthrough into labelled broken clips
-- [x] Metrics: confident-wrong rate, abstention rate, correct rate, answer length, latency
-- [x] Spend guard (hard cap, blocks unpriced models) and response cache (repeat calls are free)
-- [x] Witness A: Muse Spark 1.3 per-frame structured readings (verified on a real stove photo)
-- [x] Witness B: SAM 3.1 finds each knob; its grip bar's direction is measured from straight edges and compared with the user's all-off photo (tested on a real stove: untouched knobs within ±5°, a slight turn flagged, a full turn read as ON)
-- [x] Danger-first answers: if either witness sees a knob ON, Hold Point never says "all clear"
-- [x] Stove setup and single-photo check scripts
-- [ ] Multi-frame video checks with SAM 3.1 tracking
-- [ ] Leaving-home agent (Muse Wonder) and home profile
-- [ ] Voice in (Muse Voice Transcribe), speech out (OS text-to-speech)
-- [ ] Saved check record
-- [ ] Watch mode
-- [ ] Local mode (Muse Glimmer + self-hosted SAM 3.1)
+
+Built and tested on a real stove and phone (140 automated tests):
+
+- [x] Two witnesses + deterministic decision layer: answers only when both agree over several frames; otherwise abstains with a reason code and a spoken fix
+- [x] Witness A: Muse Spark 1.3 structured per-frame readings of SAM-guided knob close-ups
+- [x] Witness B: SAM 3.1 finds each knob; geometry measures its grip bar against the user's own all-off setup, with roll and tilt correction
+- [x] Frame-quality checks (dark, blur, glare, too far) that veto evidence on their own
+- [x] Danger-first answers: if either witness sees a knob ON, it never says "all clear"
+- [x] Phone app (served from a laptop, HTTPS tunnel): hands-free voice page, manual page with setup and evaluation mode, model-calls panel
+- [x] Voice in with Muse Voice Transcribe; speech out with the device's own text-to-speech
+- [x] Leaving-home agent: Muse Wonder plans and re-checks; summary built from verified results only; timestamped check record
+- [x] Last Seen: item and landmark setup, watching, "where are my keys?", Muse Wonder "guide me", reminder after the house check
+- [x] Evaluation: 20 labelled live checks + dark/blur/far/glare copies, plain Muse Spark vs Hold Point
+- [x] Spend guard (hard cap, blocks unpriced models) and response cache
+- [ ] Oven display reading: built (Muse Spark + an LED-segment shape reader must agree) but experimental, so not in the walk-through
+- [ ] Taps, doors, watch mode, local open-weights mode
 
 ---
 
@@ -140,14 +145,51 @@ uvicorn holdpoint.server:app --port 8000      # then open /lastseen/ on the phon
 # on the main page, after the leaving-home check: "where are my keys?" / "guide me to my keys"
 ```
 
-### Build the test set
+### Run the phone app
 
 ```bash
-python eval/inject_defects.py my_stove.mp4 my_stove.truth.json clips/
-python eval/metrics.py clips/ predictions.jsonl
+export MODEL_API_KEY=...            # Meta Model API key
+export HOLDPOINT_PASSCODE=...       # the phone page asks for it once
+uvicorn holdpoint.server:app --port 8000
+cloudflared tunnel --url http://localhost:8000   # phone cameras need HTTPS; open the printed link on the phone
 ```
 
-See the docstring in `eval/inject_defects.py` for the ground-truth format.
+- `/` is the hands-free page: tap Start once, then say "I'm leaving, check the house" or "where are my keys?"
+- `/manual` has stove setup (all knobs OFF, from where you normally stand), single checks and evaluation mode.
+- `/lastseen/` has item and landmark setup and watching.
+
+### Reproduce the evaluation
+
+Label live checks in evaluation mode on `/manual` (each check's frames and answer are saved to `home/live/`), then:
+
+```bash
+python scripts/run_eval.py --defects    # plain Muse Spark vs Hold Point; writes eval/results/
+```
+
+---
+
+## Evaluation
+
+**Question:** "Are all the burners off?" The test set is 20 live phone checks of a real 4-knob electric stove: 11 with all knobs off, and 9 with one knob on or only slightly turned. Each check also has four degraded copies (dark, blur, far, glare), for 100 cases.
+
+**Systems compared:**
+- **Plain Muse Spark:** one photo, one question, must answer.
+- **Hold Point:** its live answer on clean frames; a full re-run on the degraded copies.
+
+| | Plain Muse Spark | Hold Point |
+|---|---|---|
+| Real checks: correct | 9 / 20 | 11 / 20 |
+| Real checks: wrong (said "all off" with a knob on, false alarm, or wrong knob) | **11 / 20** (4 unsafe "all off") | **0 / 20** |
+| Real checks: refused, with a fix | can't refuse | 9 / 20 |
+| Degraded copies: unsafe "all off" | 25 / 80 | **0 / 80** (refused every time) |
+| All 100: confidently wrong | **54%** | **0%** |
+
+**Read it honestly:**
+- The price of 0% wrong is refusing: 45% of the real checks, mostly handheld frames where a knob was blurred or at the edge. The degraded copies are refused 100% of the time, which is the design.
+- A refusal always comes with a fix. In the live app, a refusal guides the camera and checks again; how often the second try succeeds was not measured.
+- This is one stove, one tester and 20 real cases. It shows the behaviour; it isn't a statistical guarantee.
+
+Full rows: [`eval/results/rows.jsonl`](eval/results/rows.jsonl); summary: [`eval/results/summary.md`](eval/results/summary.md).
 
 ---
 
@@ -161,4 +203,15 @@ See the docstring in `eval/inject_defects.py` for the ground-truth format.
 
 ## Credits
 
-Speech output uses the device's built-in text-to-speech. All model inference uses Meta models. SAM 3.1 output is decoded with Meta's [`meta-sam-parser`](https://pypi.org/project/meta-sam-parser/) (SAM License).
+All model inference uses Meta models through the Meta Model API. Other components:
+- SAM 3.1 output is decoded with Meta's [`meta-sam-parser`](https://pypi.org/project/meta-sam-parser/) (SAM License).
+- Image processing uses OpenCV and NumPy; the server uses FastAPI and Uvicorn.
+- Speech output uses the device's built-in text-to-speech (not an AI model).
+- Testing on a phone used a Cloudflare quick tunnel.
+- The demo video's 21-second intro animation was drawn with Python and Cairo (illustration only; not part of the product).
+
+All code was written by Sruthy Rajesh Bindhu (team Abstain Labs) during the event, 26 Oct - 4 Nov 2026; the git history shows the build day by day.
+
+## Licence
+
+[MIT](LICENSE)

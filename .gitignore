@@ -12,3 +12,4 @@ home/
 *.heic
 .lastseen/
 lastseen_eval_results.json
+*.egg-info/
